@@ -1,0 +1,308 @@
+const db = require('../config/db');
+const fs = require('fs');
+const path = require('path');
+
+// Helper to check if a month's inspection is overdue
+const getOverdueDetails = (lastDate) => {
+  if (!lastDate) return { status: 'pending', overdueDays: 0 };
+  const last = new Date(lastDate);
+  const due = new Date(last.getTime() + 45 * 24 * 60 * 60 * 1000); // last + 45 days
+  const today = new Date();
+  
+  const diffTime = today - due;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (today > due) {
+    return { status: 'overdue', overdueDays: diffDays };
+  }
+  return { status: 'completed', overdueDays: 0 };
+};
+
+// Fetch all inspection items in a parent-child tree structure
+const getInspectionItemsTree = async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM inspection_items ORDER BY parent_id ASC, item_no ASC');
+    
+    const tree = {};
+    rows.forEach(item => {
+      item.results = {}; // Placeholder for results
+      if (item.parent_id === 0) {
+        tree[item.id] = {
+          parent: item,
+          children: []
+        };
+      } else {
+        if (tree[item.parent_id]) {
+          tree[item.parent_id].children.push(item);
+        }
+      }
+    });
+
+    return res.json({ status: 'success', data: Object.values(tree) });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// Get list of 12 months for a year with inspection completion status
+const getMonthsList = async (req, res) => {
+  const fleetId = req.params.fleet_id;
+  const year = req.query.year || new Date().getFullYear();
+
+  try {
+    // Fetch inspections_master records for this vehicle and year
+    const [masters] = await db.query(
+      `SELECT m.id, m.month, m.inspection_date, m.signature, m.signature_date, m.mileage, 
+              u.firstname, u.lastname 
+       FROM inspections_master m
+       LEFT JOIN global_limo_user u ON u.id = m.updated_by
+       WHERE m.inspection_id = ? AND m.month LIKE ?`,
+      [fleetId, `%_${year}`]
+    );
+
+    const masterMap = {};
+    masters.forEach(m => {
+      masterMap[m.month] = m;
+    });
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const months = [];
+    for (let m = 1; m <= 12; m++) {
+      const monthKey = `${m}_${year}`;
+      const name = monthNames[m - 1];
+      const data = masterMap[monthKey] || null;
+
+      months.push({
+        monthKey,
+        monthName: name,
+        isCompleted: !!data,
+        details: data
+      });
+    }
+
+    return res.json({ status: 'success', year, months });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// Fetch checklist results for a specific fleet and month
+const getMonthInspectionDetail = async (req, res) => {
+  const { fleet_id, month } = req.params;
+
+  try {
+    // 1. Get Master Record
+    const [masters] = await db.query(
+      `SELECT m.*, u.firstname, u.lastname 
+       FROM inspections_master m
+       LEFT JOIN global_limo_user u ON u.id = m.updated_by
+       WHERE m.inspection_id = ? AND m.month = ? LIMIT 1`,
+      [fleet_id, month]
+    );
+
+    if (masters.length === 0) {
+      return res.json({ status: 'empty', message: 'No inspection recorded for this month' });
+    }
+
+    const master = masters[0];
+
+    // 2. Get Results
+    const [results] = await db.query(
+      'SELECT r.* FROM inspection_results r WHERE r.inspection_id = ? AND r.month_id = ?',
+      [master.id, month]
+    );
+
+    const resultsMap = {};
+    results.forEach(r => {
+      resultsMap[r.item_id] = { status: r.status, note: r.note };
+    });
+
+    return res.json({
+      status: 'success',
+      master: {
+        id: master.id,
+        inspection_date: master.inspection_date,
+        signature_date: master.signature_date,
+        mileage: master.mileage,
+        signature: master.signature, // Filename of signature image
+        updated_by: master.updated_by,
+        technician: `${master.firstname || ''} ${master.lastname || ''}`.trim()
+      },
+      results: resultsMap
+    });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+// Save or Update monthly checklist and signature
+const saveMonthInspection = async (req, res) => {
+  const { fleet_id, month } = req.params;
+  const { inspection_date, signature_date, mileage, signature_data, items } = req.body;
+  const ownerId = req.ownerId; // Fleet owner context
+  const userId = req.user.id;   // Logged-in technician/user
+
+  if (!inspection_date || !signature_date || !mileage || !signature_data || !items) {
+    return res.status(400).json({ status: 'error', message: 'Inspection date, signature, mileage, and item status are required' });
+  }
+
+  // Validate dates fall in chosen month/year
+  const [mNum, yNum] = month.split('_');
+  const targetYearMonth = `${yNum}-${mNum.padStart(2, '0')}`;
+  if (!inspection_date.startsWith(targetYearMonth)) {
+    return res.status(400).json({ status: 'error', message: `Inspection date must be within ${targetYearMonth}` });
+  }
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Process and save base64 signature
+    let signatureFilename = '';
+    if (signature_data.startsWith('data:image/')) {
+      const base64Data = signature_data.replace(/^data:image\/\w+;base64,/, '').replace(/ /g, '+');
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      signatureFilename = `${fleet_id}_${month}.jpg`;
+      const uploadDir = path.join(__dirname, '../uploads/signatures');
+      
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      fs.writeFileSync(path.join(uploadDir, signatureFilename), buffer);
+    } else {
+      // If it's already a saved filename
+      signatureFilename = signature_data;
+    }
+
+    // 2. Check if master record exists
+    const [exists] = await connection.query(
+      'SELECT id, updated_by FROM inspections_master WHERE inspection_id = ? AND month = ? LIMIT 1',
+      [fleet_id, month]
+    );
+
+    let masterId;
+
+    if (exists.length > 0) {
+      const existingRecord = exists[0];
+      if (existingRecord.updated_by !== userId && !INSPECTOR_ROLES_CHECK(req.user.group_id)) {
+        await connection.rollback();
+        return res.status(403).json({
+          status: 'error',
+          message: 'This month inspection was performed by another user, you cannot update it.'
+        });
+      }
+
+      masterId = existingRecord.id;
+      await connection.query(
+        `UPDATE inspections_master 
+         SET inspection_date = ?, signature_date = ?, mileage = ?, signature = ?, updated_by = ?, updated_at = NOW() 
+         WHERE id = ?`,
+        [inspection_date, signature_date, mileage, signatureFilename, userId, masterId]
+      );
+    } else {
+      // Insert
+      const [insertMaster] = await connection.query(
+        `INSERT INTO inspections_master 
+         (inspection_id, user_id, month, inspection_date, signature, signature_date, mileage, updated_by, created_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [fleet_id, ownerId, month, inspection_date, signatureFilename, signature_date, mileage, userId]
+      );
+      masterId = insertMaster.insertId;
+    }
+
+    // 3. Save / Update checklist results
+    for (const [itemId, value] of Object.entries(items)) {
+      const status = value.status || 'null';
+      const note = value.note || '';
+
+      const [resCheck] = await connection.query(
+        'SELECT id FROM inspection_results WHERE inspection_id = ? AND item_id = ? AND month_id = ? LIMIT 1',
+        [masterId, itemId, month]
+      );
+
+      if (resCheck.length > 0) {
+        await connection.query(
+          'UPDATE inspection_results SET status = ?, note = ?, updated_at = NOW() WHERE id = ?',
+          [status, note, resCheck[0].id]
+        );
+      } else {
+        await connection.query(
+          'INSERT INTO inspection_results (inspection_id, item_id, month_id, status, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+          [masterId, itemId, month, status, note]
+        );
+      }
+    }
+
+    await connection.commit();
+    return res.json({
+      status: 'success',
+      message: 'Monthly inspection checklist saved successfully',
+      masterId
+    });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(500).json({ status: 'error', message: error.message });
+  } finally {
+    connection.release();
+  }
+};
+
+// Delete month's inspection master and child rows
+const deleteMonthInspection = async (req, res) => {
+  const masterId = req.params.master_id;
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Verify ownership/authorized access before delete
+    const [check] = await connection.query(
+      `SELECT m.id, i.user_id 
+       FROM inspections_master m 
+       JOIN inspections i ON i.id = m.inspection_id 
+       WHERE m.id = ? LIMIT 1`,
+      [masterId]
+    );
+
+    if (check.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ status: 'error', message: 'Inspection record not found' });
+    }
+
+    if (check[0].user_id !== req.ownerId) {
+      await connection.rollback();
+      return res.status(403).json({ status: 'error', message: 'Unauthorized action' });
+    }
+
+    // Cascade delete results
+    await connection.query('DELETE FROM inspection_results WHERE inspection_id = ?', [masterId]);
+    // Delete master
+    await connection.query('DELETE FROM inspections_master WHERE id = ?', [masterId]);
+
+    await connection.commit();
+    return res.json({ status: 'success', message: 'Inspection log deleted successfully' });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(500).json({ status: 'error', message: error.message });
+  } finally {
+    connection.release();
+  }
+};
+
+const INSPECTOR_ROLES_CHECK = (groupId) => {
+  return [786, 787, 788, 789].includes(groupId);
+};
+
+module.exports = {
+  getInspectionItemsTree,
+  getMonthsList,
+  getMonthInspectionDetail,
+  saveMonthInspection,
+  deleteMonthInspection
+};

@@ -1,0 +1,19 @@
+.invites-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.invites-header {
+  margin-bottom: 0.5rem;
+}
+
+.accept-invite-btn {
+  padding: 0.45rem 0.85rem !important;
+  font-size: 0.8rem !important;
+}
+
+.reject-invite-btn {
+  padding: 0.45rem 0.85rem !important;
+  font-size: 0.8rem !important;
+}

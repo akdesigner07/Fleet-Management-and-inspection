@@ -1,0 +1,158 @@
+.reports-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.reports-header {
+  margin-bottom: 0.5rem;
+}
+
+.reports-layout-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 992px) {
+  .reports-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.export-controls-card {
+  padding: 2rem !important;
+}
+
+.export-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.export-action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1.25rem;
+}
+
+.export-btn {
+  width: 100%;
+}
+
+.history-logs-card {
+  padding: 2rem !important;
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.history-logs-card h2 {
+  font-size: 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.75rem;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+@media (max-width: 1200px) {
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.search-filter-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-filter-input .search-icon {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-muted);
+}
+
+.search-filter-input .form-control {
+  padding-left: 2.35rem;
+  width: 100%;
+}
+
+.filter-dropdowns-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.filter-select {
+  min-width: 130px;
+}
+
+.date-range-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.date-input-combo {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.date-input-combo svg {
+  position: absolute;
+  left: 0.75rem;
+  pointer-events: none;
+}
+
+.date-picker {
+  padding-left: 2.15rem !important;
+  font-size: 0.8rem;
+  width: 125px;
+}
+
+.date-range-to {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.history-table {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.work-done-cell {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.pagination-info {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.pagination-btn {
+  padding: 0.45rem 1rem;
+  font-size: 0.8rem;
+}
