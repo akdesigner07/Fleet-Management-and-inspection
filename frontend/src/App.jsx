@@ -1,7 +1,8 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
+import { Menu } from 'lucide-react';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -15,6 +16,12 @@ import Reports from './pages/Reports';
 
 const ProtectedRoute = ({ children }) => {
   const { token, loading } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
   
   if (loading) {
     return (
@@ -36,8 +43,14 @@ const ProtectedRoute = ({ children }) => {
   }
   
   return (
-    <div className="app-container">
-      <Sidebar />
+    <div className={`app-container ${sidebarOpen ? 'sidebar-open' : ''}`}>
+      <button className="sidebar-toggle-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle sidebar">
+        <Menu size={24} />
+      </button>
+      {sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+      )}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="main-content">
         {children}
       </main>

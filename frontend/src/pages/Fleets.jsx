@@ -266,13 +266,14 @@ const Fleets = () => {
               <th>Make / Model</th>
               <th>Year</th>
               <th>Last Mileage</th>
+              <th>Next Inspection</th>
               <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredFleets.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
                   No vehicles found. Click 'Add Vehicle' to register one.
                 </td>
               </tr>
@@ -284,6 +285,22 @@ const Fleets = () => {
                   <td>{fleet.make_name || 'N/A'} {fleet.model_name || 'N/A'}</td>
                   <td>{fleet.year}</td>
                   <td>{fleet.mileage || '0'} hrs/mi</td>
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                      {fleet.next_inspection_date ? (
+                        <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>
+                          {new Date(fleet.next_inspection_date + 'T00:00:00').toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                          Never Inspected
+                        </span>
+                      )}
+                      <span className={`badge ${fleet.inspection_status === 'pending' ? 'badge-danger' : 'badge-success'}`}>
+                        {fleet.inspection_status === 'pending' ? 'Pending' : 'Up to date'}
+                      </span>
+                    </div>
+                  </td>
                   <td>
                     <div className="fleet-actions-row">
                       <button 

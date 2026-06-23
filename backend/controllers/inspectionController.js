@@ -50,7 +50,7 @@ const getMonthsList = async (req, res) => {
   const year = req.query.year || new Date().getFullYear();
 
   try {
-    // Fetch inspections_master records for this vehicle and year
+    // 1. Fetch inspections_master records for this vehicle and year
     const [masters] = await db.query(
       `SELECT m.id, m.month, m.inspection_date, m.signature, m.signature_date, m.mileage, 
               u.firstname, u.lastname 
@@ -65,6 +65,43 @@ const getMonthsList = async (req, res) => {
       masterMap[m.month] = m;
     });
 
+    // 2. Fetch overall latest inspection_date for this fleet across all years
+    const [latestCheck] = await db.query(
+      'SELECT MAX(inspection_date) as last_date FROM inspections_master WHERE inspection_id = ?',
+      [fleetId]
+    );
+    const lastDateVal = latestCheck[0]?.last_date || null;
+
+    let nextDueMonthKey = '';
+    let nextDueDateStr = '';
+    let isOverdue = false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (lastDateVal) {
+      const last = new Date(lastDateVal);
+      const nextDue = new Date(last.getTime() + 45 * 24 * 60 * 60 * 1000);
+      nextDue.setHours(0, 0, 0, 0);
+
+      const yr = nextDue.getFullYear();
+      const mo = nextDue.getMonth() + 1;
+      const dy = String(nextDue.getDate()).padStart(2, '0');
+
+      nextDueMonthKey = `${mo}_${yr}`;
+      nextDueDateStr = `${yr}-${String(mo).padStart(2, '0')}-${dy}`;
+      isOverdue = today >= nextDue;
+    } else {
+      // Never inspected. Due month is the current month.
+      const yr = today.getFullYear();
+      const mo = today.getMonth() + 1;
+      const dy = String(today.getDate()).padStart(2, '0');
+
+      nextDueMonthKey = `${mo}_${yr}`;
+      nextDueDateStr = `${yr}-${String(mo).padStart(2, '0')}-${dy}`;
+      isOverdue = true; // overdue since never inspected
+    }
+
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -76,11 +113,23 @@ const getMonthsList = async (req, res) => {
       const name = monthNames[m - 1];
       const data = masterMap[monthKey] || null;
 
+      const isNextDueMonth = (monthKey === nextDueMonthKey);
+      let dueStatus = 'pending'; // default state
+
+      if (data) {
+        dueStatus = 'completed';
+      } else if (isNextDueMonth) {
+        dueStatus = isOverdue ? 'overdue' : 'upcoming';
+      }
+
       months.push({
         monthKey,
         monthName: name,
         isCompleted: !!data,
-        details: data
+        details: data,
+        isNextDueMonth,
+        nextDueDate: isNextDueMonth ? nextDueDateStr : null,
+        dueStatus
       });
     }
 
@@ -155,6 +204,47 @@ const saveMonthInspection = async (req, res) => {
   const targetYearMonth = `${yNum}-${mNum.padStart(2, '0')}`;
   if (!inspection_date.startsWith(targetYearMonth)) {
     return res.status(400).json({ status: 'error', message: `Inspection date must be within ${targetYearMonth}` });
+  }
+
+  // Advance inspection check (future date check)
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (inspection_date > todayStr) {
+    return res.status(400).json({ status: 'error', message: 'Inspection date cannot be in the future (advance inspection not allowed)' });
+  }
+
+  // 45-day separation constraint check
+  try {
+    const [otherInspections] = await db.query(
+      'SELECT inspection_date, month FROM inspections_master WHERE inspection_id = ? AND month != ? ORDER BY inspection_date ASC',
+      [fleet_id, month]
+    );
+
+    const newDateObj = new Date(inspection_date);
+    newDateObj.setHours(0, 0, 0, 0);
+    const newTime = newDateObj.getTime();
+
+    for (const ins of otherInspections) {
+      const existingDateObj = new Date(ins.inspection_date);
+      existingDateObj.setHours(0, 0, 0, 0);
+      const existingTime = existingDateObj.getTime();
+      const diffTime = Math.abs(newTime - existingTime);
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+      if (diffDays < 45) {
+        const formatDateStr = (d) => {
+          const yr = d.getFullYear();
+          const mo = String(d.getMonth() + 1).padStart(2, '0');
+          const dy = String(d.getDate()).padStart(2, '0');
+          return `${yr}-${mo}-${dy}`;
+        };
+        return res.status(400).json({
+          status: 'error',
+          message: `Inspections must be at least 45 days apart. There is an inspection on ${formatDateStr(existingDateObj)} (${ins.month.replace('_', '/')}), which is only ${Math.round(diffDays)} days apart.`
+        });
+      }
+    }
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
   }
 
   const connection = await db.getConnection();

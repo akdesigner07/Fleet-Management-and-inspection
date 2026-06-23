@@ -9,16 +9,9 @@
 }
 
 .reports-layout-grid {
-  display: grid;
-  grid-template-columns: 320px 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 2rem;
-  align-items: start;
-}
-
-@media (max-width: 992px) {
-  .reports-layout-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .export-controls-card {
@@ -31,17 +24,40 @@
   gap: 1.25rem;
 }
 
+.export-fields-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  width: 100%;
+}
+
 .export-action-buttons {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  flex-direction: row;
+  gap: 1rem;
   margin-top: 1.25rem;
   border-top: 1px solid var(--border-color);
   padding-top: 1.25rem;
+  width: 100%;
 }
 
 .export-btn {
-  width: 100%;
+  flex: 1;
+  width: auto;
+}
+
+@media (max-width: 768px) {
+  .export-fields-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .export-action-buttons {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .export-btn {
+    width: 100%;
+  }
 }
 
 .history-logs-card {
@@ -50,6 +66,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-width: 0;
 }
 
 .history-logs-card h2 {
@@ -155,4 +172,27 @@
 .pagination-btn {
   padding: 0.45rem 1rem;
   font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+
+  .filter-dropdowns-row,
+  .date-range-row {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .filter-select {
+    width: 100%;
+  }
+
+  .date-input-combo {
+    width: 100%;
+  }
+
+  .date-picker {
+    width: 100% !important;
+  }
 }

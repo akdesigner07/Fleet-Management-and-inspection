@@ -12,19 +12,39 @@
 }
 
 .fleet-info-badge {
-  padding: 0.5rem 1.25rem !important;
+  padding: 0.75rem 1.5rem !important;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.fleet-info-badge-divider {
+  height: 30px;
+  width: 1px;
+  background: var(--border-color);
+}
+
+.fleet-info-item {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
+  font-size: 0.85rem;
 }
 
-.fleet-info-badge h3 {
+.fleet-info-item h3 {
   font-size: 1.1rem;
+  margin: 0;
 }
 
-.fleet-info-badge span {
+.fleet-info-item span {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.fleet-info-item strong {
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .months-filter-header {
@@ -66,11 +86,21 @@
 }
 
 .completed-border {
-  border-color: rgba(16, 185, 129, 0.2) !important;
+  border-color: rgba(16, 185, 129, 0.25) !important;
+}
+
+.overdue-border {
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.05);
+}
+
+.upcoming-border {
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.05);
 }
 
 .pending-border {
-  border-color: rgba(239, 68, 68, 0.15) !important;
+  border-color: var(--border-color) !important;
 }
 
 .month-card-header {
@@ -276,4 +306,75 @@
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .page-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .fleet-info-badge {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    width: 100%;
+  }
+
+  .fleet-info-badge-divider {
+    display: none;
+  }
+  
+  .months-filter-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .year-select-container {
+    width: 100%;
+  }
+  
+  .form-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .checklist-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1rem;
+  }
+  
+  .item-inputs {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  
+  .status-toggle-buttons {
+    width: 100%;
+  }
+  
+  .status-toggle-btn {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  .item-note-input {
+    width: 100%;
+  }
+  
+  .form-submit-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .form-submit-actions .btn {
+    width: 100%;
+  }
 }

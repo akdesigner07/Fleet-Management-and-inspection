@@ -158,44 +158,49 @@ const Reports = () => {
           </div>
 
           <div className="export-form">
-            <div className="form-group">
-              <label className="form-label">Report Category</label>
-              <select 
-                className="form-control"
-                value={exportType}
-                onChange={(e) => setExportType(e.target.value)}
-              >
-                <option value="45_day">45-Day Safety Checklist Matrix</option>
-                <option value="lub_report">Lubrication & Service Report</option>
-                <option value="repair_report">Repair & Maintenance Report</option>
-              </select>
-            </div>
+            <div className="export-fields-row">
+              <div className="form-group">
+                <label className="form-label">Report Category</label>
+                <select 
+                  className="form-control"
+                  value={exportType}
+                  onChange={(e) => setExportType(e.target.value)}
+                >
+                  <option value="45_day">45-Day Safety Checklist Matrix</option>
+                  <option value="lub_report">Lubrication & Service Report</option>
+                  <option value="repair_report">Repair & Maintenance Report</option>
+                </select>
+              </div>
 
-            <div className="form-group">
-              <label className="form-label">Target Vehicle</label>
-              <select 
-                className="form-control"
-                value={exportVehicle}
-                onChange={(e) => setExportVehicle(e.target.value)}
-              >
-                <option value="all">All Fleets (ZIP Export Only)</option>
-                {vehicles.map(v => (
-                  <option key={v.id} value={v.id}>Unit {v.unit_no} - {v.make_name} {v.model_name}</option>
-                ))}
-              </select>
-            </div>
+              <div className="form-group">
+                <label className="form-label">Target Vehicle</label>
+                <select 
+                  className="form-control"
+                  value={exportVehicle}
+                  onChange={(e) => setExportVehicle(e.target.value)}
+                >
+                  <option value="all">All Fleets (ZIP Export Only)</option>
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.id}>Unit {v.unit_no} - {v.make_name} {v.model_name}</option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="form-group">
-              <label className="form-label">Reporting Year</label>
-              <select 
-                className="form-control"
-                value={exportYear}
-                onChange={(e) => setExportYear(parseInt(e.target.value, 10))}
-              >
-                {[2025, 2026, 2027, 2028].map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+              <div className="form-group">
+                <label className="form-label">Reporting Year</label>
+                <select 
+                  className="form-control"
+                  value={exportYear}
+                  onChange={(e) => setExportYear(parseInt(e.target.value, 10))}
+                >
+                  {(() => {
+                    const currentYear = new Date().getFullYear();
+                    return [currentYear - 2, currentYear - 1, currentYear].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ));
+                  })()}
+                </select>
+              </div>
             </div>
 
             <div className="export-action-buttons">
@@ -261,6 +266,7 @@ const Reports = () => {
                   className="form-control date-picker"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
                 />
               </div>
               <span className="date-range-to">to</span>
@@ -271,6 +277,7 @@ const Reports = () => {
                   className="form-control date-picker"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  onClick={(e) => e.target.showPicker && e.target.showPicker()}
                 />
               </div>
             </div>

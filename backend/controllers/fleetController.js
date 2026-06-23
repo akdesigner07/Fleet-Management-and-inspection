@@ -5,16 +5,60 @@ const getFleets = async (req, res) => {
   try {
     const ownerId = req.ownerId;
     const [rows] = await db.query(
-      `SELECT i.*, mk.name as make_name, md.name as model_name 
+      `SELECT i.*, mk.name as make_name, md.name as model_name, im.last_date 
        FROM inspections i
        LEFT JOIN carmake_tbl mk ON mk.id = i.make
        LEFT JOIN carmodal_tbl md ON md.id = i.model
+       LEFT JOIN (
+         SELECT inspection_id, MAX(inspection_date) as last_date
+         FROM inspections_master
+         GROUP BY inspection_id
+       ) im ON im.inspection_id = i.id
        WHERE i.user_id = ?
        ORDER BY i.id DESC`,
       [ownerId]
     );
 
-    return res.json({ status: 'success', data: rows });
+    const getInspectionStatus = (lastDate) => {
+      if (!lastDate) {
+        return {
+          last_inspection_date: null,
+          next_inspection_date: null,
+          status: 'pending'
+        };
+      }
+      const last = new Date(lastDate);
+      const nextDue = new Date(last.getTime() + 45 * 24 * 60 * 60 * 1000);
+      
+      const formatDate = (d) => {
+        const yr = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const dy = String(d.getDate()).padStart(2, '0');
+        return `${yr}-${mo}-${dy}`;
+      };
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      nextDue.setHours(0, 0, 0, 0);
+
+      return {
+        last_inspection_date: formatDate(last),
+        next_inspection_date: formatDate(nextDue),
+        status: today >= nextDue ? 'pending' : 'completed'
+      };
+    };
+
+    const data = rows.map(row => {
+      const statusInfo = getInspectionStatus(row.last_date);
+      return {
+        ...row,
+        last_inspection_date: statusInfo.last_inspection_date,
+        next_inspection_date: statusInfo.next_inspection_date,
+        inspection_status: statusInfo.status
+      };
+    });
+
+    return res.json({ status: 'success', data });
   } catch (error) {
     return res.status(500).json({ status: 'error', message: error.message });
   }
@@ -24,10 +68,15 @@ const getFleets = async (req, res) => {
 const getFleetById = async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT i.*, mk.name as make_name, md.name as model_name 
+      `SELECT i.*, mk.name as make_name, md.name as model_name, im.last_date 
        FROM inspections i
        LEFT JOIN carmake_tbl mk ON mk.id = i.make
        LEFT JOIN carmodal_tbl md ON md.id = i.model
+       LEFT JOIN (
+         SELECT inspection_id, MAX(inspection_date) as last_date
+         FROM inspections_master
+         GROUP BY inspection_id
+       ) im ON im.inspection_id = i.id
        WHERE i.id = ? AND i.user_id = ?`,
       [req.params.id, req.ownerId]
     );
@@ -36,7 +85,44 @@ const getFleetById = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Vehicle not found' });
     }
 
-    return res.json({ status: 'success', data: rows[0] });
+    const getInspectionStatus = (lastDate) => {
+      if (!lastDate) {
+        return {
+          last_inspection_date: null,
+          next_inspection_date: null,
+          status: 'pending'
+        };
+      }
+      const last = new Date(lastDate);
+      const nextDue = new Date(last.getTime() + 45 * 24 * 60 * 60 * 1000);
+      
+      const formatDate = (d) => {
+        const yr = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const dy = String(d.getDate()).padStart(2, '0');
+        return `${yr}-${mo}-${dy}`;
+      };
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      nextDue.setHours(0, 0, 0, 0);
+
+      return {
+        last_inspection_date: formatDate(last),
+        next_inspection_date: formatDate(nextDue),
+        status: today >= nextDue ? 'pending' : 'completed'
+      };
+    };
+
+    const statusInfo = getInspectionStatus(rows[0].last_date);
+    const data = {
+      ...rows[0],
+      last_inspection_date: statusInfo.last_inspection_date,
+      next_inspection_date: statusInfo.next_inspection_date,
+      inspection_status: statusInfo.status
+    };
+
+    return res.json({ status: 'success', data });
   } catch (error) {
     return res.status(500).json({ status: 'error', message: error.message });
   }

@@ -397,6 +397,7 @@ const RepairLogs = () => {
               className="form-control"
               value={logForm.repair_date}
               onChange={(e) => setLogForm({ ...logForm, repair_date: e.target.value })}
+              onClick={(e) => e.target.showPicker && e.target.showPicker()}
               required
             />
           </div>

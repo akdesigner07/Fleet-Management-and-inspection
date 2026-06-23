@@ -16,6 +16,17 @@ import {
 import confetti from 'canvas-confetti';
 import './InspectionDetail.css';
 
+const isFutureMonth = (monthKey) => {
+  const [mNum, yNum] = monthKey.split('_').map(Number);
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+
+  if (yNum > currentYear) return true;
+  if (yNum === currentYear && mNum > currentMonth) return true;
+  return false;
+};
+
 const InspectionDetail = () => {
   const { fleet_id } = useParams();
   const navigate = useNavigate();
@@ -156,6 +167,29 @@ const InspectionDetail = () => {
       return;
     }
 
+    // Future date validation
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (insDate > todayStr) {
+      alert('Inspection date cannot be in the future (advance inspection not allowed)');
+      return;
+    }
+
+    // 45 days separation validation
+    const currentMonthObj = months.find(m => m.monthKey === activeMonthKey);
+    const isEditing = currentMonthObj && currentMonthObj.isCompleted;
+
+    if (!isEditing && fleet && fleet.last_inspection_date) {
+      const lastDate = new Date(fleet.last_inspection_date + 'T00:00:00');
+      const newDate = new Date(insDate + 'T00:00:00');
+      const diffTime = Math.abs(newDate - lastDate);
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      
+      if (diffDays < 45) {
+        alert(`Inspections must be at least 45 days apart. The last inspection was on ${lastDate.toLocaleDateString()}, which is only ${Math.round(diffDays)} days apart.`);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const res = await apiRequest(`/api/inspections/save/${fleet_id}/${activeMonthKey}`, {
@@ -221,8 +255,26 @@ const InspectionDetail = () => {
         </button>
         {fleet && (
           <div className="fleet-info-badge card">
-            <h3>Unit {fleet.unit_no}</h3>
-            <span>{fleet.make_name} {fleet.model_name} ({fleet.year})</span>
+            <div className="fleet-info-item">
+              <h3>Unit {fleet.unit_no}</h3>
+              <span>{fleet.make_name} {fleet.model_name} ({fleet.year})</span>
+            </div>
+            <div className="fleet-info-badge-divider"></div>
+            <div className="fleet-info-item">
+              <span>Last Inspected:</span>
+              <strong>
+                {fleet.last_inspection_date ? new Date(fleet.last_inspection_date + 'T00:00:00').toLocaleDateString() : 'Never'}
+              </strong>
+            </div>
+            <div className="fleet-info-item">
+              <span>Next Due:</span>
+              <strong style={{ color: fleet.inspection_status === 'pending' ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                {fleet.next_inspection_date ? new Date(fleet.next_inspection_date + 'T00:00:00').toLocaleDateString() : 'Immediate'}
+              </strong>
+            </div>
+            <span className={`badge ${fleet.inspection_status === 'pending' ? 'badge-danger' : 'badge-success'}`}>
+              {fleet.inspection_status === 'pending' ? 'Inspection Pending' : 'Up to date'}
+            </span>
           </div>
         )}
       </header>
@@ -239,20 +291,36 @@ const InspectionDetail = () => {
                 onChange={(e) => setSelectedYear(e.target.value)}
                 className="form-control"
               >
-                {[2025, 2026, 2027, 2028].map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
+                {(() => {
+                  const currentYear = new Date().getFullYear();
+                  return [currentYear - 2, currentYear - 1, currentYear].map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ));
+                })()}
               </select>
             </div>
           </div>
 
           <div className="months-grid">
             {months.map(m => (
-              <div key={m.monthKey} className={`month-card card ${m.isCompleted ? 'completed-border' : 'pending-border'}`}>
+              <div 
+                key={m.monthKey} 
+                className={`month-card card ${
+                  m.dueStatus === 'completed' ? 'completed-border' : 
+                  m.dueStatus === 'overdue' ? 'overdue-border' : 
+                  m.dueStatus === 'upcoming' ? 'upcoming-border' : 'pending-border'
+                }`}
+              >
                 <div className="month-card-header">
                   <h3>{m.monthName}</h3>
-                  <span className={`badge ${m.isCompleted ? 'badge-success' : 'badge-danger'}`}>
-                    {m.isCompleted ? 'Completed' : 'Pending'}
+                  <span className={`badge ${
+                    m.dueStatus === 'completed' ? 'badge-success' : 
+                    m.dueStatus === 'overdue' ? 'badge-danger' : 
+                    m.dueStatus === 'upcoming' ? 'badge-info' : 'badge-secondary'
+                  }`}>
+                    {m.dueStatus === 'completed' ? 'Completed' : 
+                     m.dueStatus === 'overdue' ? 'Overdue' : 
+                     m.dueStatus === 'upcoming' ? 'Upcoming' : 'Pending'}
                   </span>
                 </div>
                 
@@ -278,13 +346,46 @@ const InspectionDetail = () => {
                   </div>
                 ) : (
                   <div className="month-pending-info">
-                    <p className="text-muted">No safety checklist logged for this month.</p>
-                    <button 
-                      className="btn btn-primary start-ins-btn"
-                      onClick={() => loadChecklistForm(m.monthKey, m.monthName)}
-                    >
-                      Perform Inspection
-                    </button>
+                    {m.dueStatus === 'overdue' && (
+                      <div className="due-error-alert" style={{ color: 'var(--color-danger)', background: 'rgba(239, 68, 68, 0.08)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <AlertTriangle size={14} /> OVERDUE INSPECTION
+                        </span>
+                        <span style={{ fontSize: '0.75rem' }}>Due Date: {new Date(m.nextDueDate + 'T00:00:00').toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    {m.dueStatus === 'upcoming' && (
+                      <div className="upcoming-info-alert" style={{ color: 'var(--color-success)', background: 'rgba(16, 185, 129, 0.08)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Calendar size={14} /> UPCOMING DUE
+                        </span>
+                        <span style={{ fontSize: '0.75rem' }}>Due Date: {new Date(m.nextDueDate + 'T00:00:00').toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    {m.dueStatus === 'pending' && (
+                      <p className="text-muted" style={{ fontSize: '0.8rem' }}>No safety checklist logged for this month.</p>
+                    )}
+                    {isFutureMonth(m.monthKey) ? (
+                      <div className="future-month-msg" style={{ border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', fontStyle: 'italic', marginTop: '0.75rem' }}>
+                        Inspection not available yet
+                      </div>
+                    ) : m.dueStatus === 'upcoming' ? (
+                      <button 
+                        className="btn start-ins-btn" 
+                        disabled
+                        title="Inspection cannot be done before the 45-day due date."
+                        style={{ opacity: 0.5, cursor: 'not-allowed', background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}
+                      >
+                        Perform Inspection
+                      </button>
+                    ) : (
+                      <button 
+                        className={`btn start-ins-btn ${m.dueStatus === 'overdue' ? 'btn-danger' : 'btn-primary'}`}
+                        onClick={() => loadChecklistForm(m.monthKey, m.monthName)}
+                      >
+                        Perform Inspection
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -307,6 +408,7 @@ const InspectionDetail = () => {
                 className="form-control"
                 value={insDate}
                 onChange={(e) => setInsDate(e.target.value)}
+                onClick={(e) => e.target.showPicker && e.target.showPicker()}
                 required
               />
             </div>
@@ -318,6 +420,7 @@ const InspectionDetail = () => {
                 className="form-control"
                 value={sigDate}
                 onChange={(e) => setSigDate(e.target.value)}
+                onClick={(e) => e.target.showPicker && e.target.showPicker()}
                 required
               />
             </div>

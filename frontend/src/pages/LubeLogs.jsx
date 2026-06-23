@@ -398,6 +398,7 @@ const LubeLogs = () => {
               className="form-control"
               value={logForm.lub_date}
               onChange={(e) => setLogForm({ ...logForm, lub_date: e.target.value })}
+              onClick={(e) => e.target.showPicker && e.target.showPicker()}
               required
             />
           </div>

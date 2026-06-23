@@ -10,11 +10,12 @@ import {
   Mail, 
   FileText, 
   LogOut,
-  Users
+  Users,
+  X
 } from 'lucide-react';
 import './Sidebar.css';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
   const { user, owners, activeOwnerId, switchOwner, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -32,10 +33,15 @@ const Sidebar = () => {
   if (!user) return null;
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-brand">
-        <h2>GLOBAL LIMO</h2>
-        <span className="sidebar-subtitle">Inspection Portal</span>
+        <div>
+          <h2>GLOBAL LIMO</h2>
+          <span className="sidebar-subtitle">Inspection Portal</span>
+        </div>
+        <button className="sidebar-close-mobile" onClick={onClose} aria-label="Close menu">
+          <X size={20} />
+        </button>
       </div>
 
       {/* Owner Account Context Switcher */}
