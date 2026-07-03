@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { 
-  Send, 
-  UserPlus, 
-  Trash2, 
-  RefreshCw, 
-  Check, 
-  AlertCircle, 
-  Copy 
+import {
+  Send,
+  UserPlus,
+  Trash2,
+  RefreshCw,
+  Check,
+  AlertCircle,
+  Copy
 } from 'lucide-react';
 import './Sharing.css';
 
 const Sharing = () => {
   const { apiRequest, user } = useAuth();
-  
+
   const [sharedUsers, setSharedUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Invite form states
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteType, setInviteType] = useState('786');
@@ -201,23 +201,23 @@ const Sharing = () => {
               <Send size={16} className="text-secondary" />
               <h2>Invite Inspector / Technician</h2>
             </div>
-            
+
             <form onSubmit={handleSendInvite} className="sharing-form">
               <div className="form-group">
                 <label className="form-label">Email Address</label>
-                <input 
-                  type="email" 
-                  className="form-control" 
+                <input
+                  type="email"
+                  className="form-control"
                   placeholder="inspector@company.com"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  required 
+                  required
                 />
               </div>
 
               <div className="form-group">
                 <label className="form-label">Permission Group (Role)</label>
-                <select 
+                <select
                   className="form-control"
                   value={inviteType}
                   onChange={(e) => setInviteType(e.target.value)}
@@ -245,7 +245,7 @@ const Sharing = () => {
           </section>
 
           {/* Add mechanic direkt card */}
-          <section className="card form-card">
+          {/* <section className="card form-card">
             <div className="section-title-combo">
               <UserPlus size={16} className="text-secondary" />
               <h2>Register New Mechanic</h2>
@@ -327,7 +327,7 @@ const Sharing = () => {
 
               <button type="submit" className="btn btn-success">Register Mechanic</button>
             </form>
-          </section>
+          </section> */ }
         </div>
 
         {/* Delegates list table */}
@@ -361,17 +361,16 @@ const Sharing = () => {
                         </td>
                         <td>{getRoleName(u.type)}</td>
                         <td>
-                          <span className={`badge ${
-                            u.status === 'accepted' ? 'badge-success' : 
+                          <span className={`badge ${u.status === 'accepted' ? 'badge-success' :
                             u.status === 'pending' ? 'badge-warning' : 'badge-danger'
-                          }`}>
+                            }`}>
                             {u.status}
                           </span>
                         </td>
                         <td>
                           <div className="actions-cell">
                             {u.status === 'pending' && (
-                              <button 
+                              <button
                                 className="action-btn btn-secondary-edit"
                                 onClick={() => handleResendInvite(u.id)}
                                 title="Resend Invite Link"
@@ -380,7 +379,7 @@ const Sharing = () => {
                               </button>
                             )}
                             {u.status !== 'revoked' && (
-                              <button 
+                              <button
                                 className="action-btn btn-danger-delete"
                                 onClick={() => handleRevokeAccess(u.id)}
                                 title="Revoke User Access"

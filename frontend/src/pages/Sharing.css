@@ -10,7 +10,7 @@
 
 .sharing-grid {
   display: grid;
-  grid-template-columns: 420px 1fr;
+  /* grid-template-columns: 420px 1fr; */
   gap: 2rem;
   align-items: start;
 }
@@ -99,12 +99,12 @@
   .sharing-form-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .copy-link-row {
     flex-direction: column;
     gap: 0.75rem;
   }
-  
+
   .copy-btn {
     width: 100%;
   }

@@ -337,18 +337,21 @@ const RepairLogs = () => {
                     </td>
                     <td>
                       <div className="file-attachment-indicator">
-                        {files.map((f, i) => (
-                          <a 
-                            key={i} 
-                            href={`http://localhost:5000/uploads/repair/${f}`} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="attachment-link"
-                            title={f}
-                          >
-                            <Paperclip size={14} />
-                          </a>
-                        ))}
+                        {files.map((f, i) => {
+                          const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                          return (
+                            <a 
+                              key={i} 
+                              href={`${apiBase}/uploads/repair/${f}`} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="attachment-link"
+                              title={f}
+                            >
+                              <Paperclip size={14} />
+                            </a>
+                          );
+                        })}
                       </div>
                     </td>
                     <td>

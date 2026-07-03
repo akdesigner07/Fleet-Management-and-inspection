@@ -29,15 +29,16 @@ const Signup = () => {
       }
 
       try {
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         // Query database for this code to resolve the email associated
         // We will hit a generic public verification path or use the code directly
-        const res = await fetch(`http://localhost:5000/api/auth/signup?code=${code}`);
+        const res = await fetch(`${apiBase}/api/auth/signup?code=${code}`);
         // Let's resolve in signup directly. Or verify before.
         // Actually, we can fetch public details or decode it.
         // Since we verify in controller, let's allow fetching email by code.
         // We can do a fetch to a verification route or simulate.
         // Let's do a fetch:
-        const checkRes = await fetch(`http://localhost:5000/api/shares/invites?code=${code}`);
+        const checkRes = await fetch(`${apiBase}/api/shares/invites?code=${code}`);
         // Wait, does the API have this endpoint? In shareController, getIncomingInvites checks by authenticated user email.
         // So let's make sure we have a simple check route, or we can just let user type their email,
         // and backend verifies code match in signup. That's simple!
@@ -49,9 +50,8 @@ const Signup = () => {
         // So we can let the user enter their email, but it MUST match the invite email.
         // Let's just let the user type their email or fetch it.
         // Wait, let's fetch the email by code from server by hitting an endpoint we will create,
-        // or just fetch from a public verify invite endpoint. Let's make it input directly for now,
-        // or fetch if available. Let's fetch!
-        const response = await fetch(`http://localhost:5000/api/auth/signup?code=${code}`);
+        // or just fetch from a public verify invite endpoint. Let's fetch!
+        const response = await fetch(`${apiBase}/api/auth/signup?code=${code}`);
         // Wait! We can verify invitation details
         // Let's hit the server to get invite email.
         // Let's write the code to retrieve invitation details by code.

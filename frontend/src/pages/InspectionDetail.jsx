@@ -125,7 +125,8 @@ const InspectionDetail = () => {
           
           // Decode signature path
           if (master.signature) {
-            setSignatureData(`http://localhost:5000/uploads/signatures/${master.signature}`);
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            setSignatureData(`${apiBase}/uploads/signatures/${master.signature}`);
           }
 
           // Merge statuses

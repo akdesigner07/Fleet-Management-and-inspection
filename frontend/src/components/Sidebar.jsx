@@ -1,14 +1,14 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { 
-  LayoutDashboard, 
-  Car, 
-  Droplet, 
-  Wrench, 
-  Share2, 
-  Mail, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Car,
+  Droplet,
+  Wrench,
+  Share2,
+  Mail,
+  FileText,
   LogOut,
   Users,
   X
@@ -48,8 +48,8 @@ const Sidebar = ({ isOpen, onClose }) => {
       {(owners.length > 1 || (owners.length === 1 && [786, 787, 788, 789].includes(user.group_id))) && (
         <div className="context-switcher">
           <label className="form-label">Active Account Context</label>
-          <select 
-            value={activeOwnerId || ''} 
+          <select
+            value={activeOwnerId || ''}
             onChange={handleOwnerChange}
             className="form-control context-select"
           >
@@ -95,10 +95,12 @@ const Sidebar = ({ isOpen, onClose }) => {
           </NavLink>
         )}
 
-        <NavLink to="/invitations" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <Mail size={18} />
-          <span>Invitations</span>
-        </NavLink>
+        {(owners.length > 1 || (owners.length === 1 && [786, 787, 788, 789].includes(user.group_id))) && (
+          <NavLink to="/invitations" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Mail size={18} />
+            <span>Invitations</span>
+          </NavLink>
+        )}
       </nav>
 
       <div className="sidebar-footer">

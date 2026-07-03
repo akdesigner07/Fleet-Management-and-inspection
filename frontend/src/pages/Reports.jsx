@@ -101,7 +101,8 @@ const Reports = () => {
     }
     const token = localStorage.getItem('token');
     const ownerId = localStorage.getItem('activeOwnerId');
-    const url = `http://localhost:5000/api/reports/export-pdf?type=${exportType}&vehicle=${exportVehicle}&year=${exportYear}&owner_id=${ownerId}`;
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const url = `${apiBase}/api/reports/export-pdf?type=${exportType}&vehicle=${exportVehicle}&year=${exportYear}&owner_id=${ownerId}`;
     
     // Trigger download by opening window
     window.open(url, '_blank');
@@ -110,7 +111,8 @@ const Reports = () => {
   const handleExportZip = () => {
     const token = localStorage.getItem('token');
     const ownerId = localStorage.getItem('activeOwnerId');
-    const url = `http://localhost:5000/api/reports/export-all-zip?type=${exportType}&year=${exportYear}&owner_id=${ownerId}`;
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const url = `${apiBase}/api/reports/export-all-zip?type=${exportType}&year=${exportYear}&owner_id=${ownerId}`;
     
     window.open(url, '_blank');
   };
