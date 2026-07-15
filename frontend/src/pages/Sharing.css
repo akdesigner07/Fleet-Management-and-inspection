@@ -10,7 +10,7 @@
 
 .sharing-grid {
   display: grid;
-  /* grid-template-columns: 420px 1fr; */
+  grid-template-columns: 420px 1fr;
   gap: 2rem;
   align-items: start;
 }
@@ -78,10 +78,18 @@
   padding: 0.5rem 0.75rem;
 }
 
+.list-column {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
 .list-card {
   padding: 2rem !important;
   min-height: 500px;
   min-width: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 .list-card h2 {
@@ -93,9 +101,29 @@
 
 .sharing-table-container {
   border-color: rgba(255, 255, 255, 0.05);
+  overflow-x: auto;
+  width: 100%;
 }
 
 @media (max-width: 768px) {
+  .sharing-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .list-column {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .form-card, 
+  .list-card {
+    padding: 1rem !important;
+    min-height: auto;
+    width: 100%;
+    overflow: hidden;
+  }
+
   .sharing-form-grid {
     grid-template-columns: 1fr;
   }
@@ -107,5 +135,16 @@
 
   .copy-btn {
     width: 100%;
+  }
+  
+  .sharing-table-container table {
+    width: 100%;
+    min-width: 600px; /* Force table width to enable horizontal scroll and avoid text squeeze */
+  }
+
+  .sharing-table-container th,
+  .sharing-table-container td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
   }
 }

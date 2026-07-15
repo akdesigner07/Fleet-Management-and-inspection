@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Modal from '../components/Modal';
-import { 
-  Plus, 
-  Trash2, 
-  Edit, 
-  Paperclip, 
-  FileText 
-} from 'lucide-react';
+import { Plus, Settings, Edit2, Trash2, Calendar, Clock, Wrench, Image } from 'lucide-react';
 import './Logs.css';
 
 const REPAIR_CATEGORIES = {
@@ -30,7 +23,10 @@ const REPAIR_CATEGORIES = {
 const RepairLogs = () => {
   const { apiRequest, user, activeOwnerId } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const queryVehicleId = searchParams.get('vehicle') || '';
+  const action = searchParams.get('action');
+  const editId = searchParams.get('id');
 
   const [vehicles, setVehicles] = useState([]);
   const [selectedVehicle, setSelectedVehicle] = useState(queryVehicleId);
@@ -38,7 +34,6 @@ const RepairLogs = () => {
   const [logs, setLogs] = useState([]);
   
   const [loading, setLoading] = useState(true);
-  const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
 
   // File Upload states
@@ -93,7 +88,22 @@ const RepairLogs = () => {
       const res = await apiRequest(`/api/repair/${selectedVehicle}`);
       const data = await res.json();
       if (data.status === 'success') {
-        setLogs(data.data);
+        const parsedLogs = data.data.map(log => {
+          let files = [];
+          if (log.repair_files) {
+            if (Array.isArray(log.repair_files)) {
+              files = log.repair_files;
+            } else if (typeof log.repair_files === 'string') {
+              try {
+                files = JSON.parse(log.repair_files);
+              } catch (e) {
+                console.error(e);
+              }
+            }
+          }
+          return { ...log, repair_files: files };
+        });
+        setLogs(parsedLogs);
       }
     } catch (err) {
       console.error(err);
@@ -164,8 +174,8 @@ const RepairLogs = () => {
       });
       const data = await res.json();
       if (data.status === 'success') {
-        setLogsModalOpen(false);
         fetchLogs();
+        navigate(`/repairs?vehicle=${selectedVehicle}`);
       } else {
         alert(data.message);
       }
@@ -187,39 +197,51 @@ const RepairLogs = () => {
       repair_alert: false,
       repair_status: 'pending'
     });
-    setLogsModalOpen(true);
+    navigate(`/repairs?vehicle=${selectedVehicle}&action=add-repair`);
   };
 
   const handleEditClick = (log) => {
     setSelectedLog(log);
-    
-    // Parse uploaded files
-    let files = [];
-    try {
-      files = JSON.parse(log.repair_files) || [];
-    } catch (e) {
-      files = [];
-    }
-    setUploadedFilenames(files);
-
     setLogForm({
       category: log.category.toString(),
       repair_date: log.repair_date.split('T')[0],
       mileage: log.mileage || '',
       notes: log.notes || '',
       repair_amt: log.repair_amt || '',
-      repair_done_by: log.repair_done_by.toString(),
-      repair_alert: log.repair_alert === '1',
-      repair_status: log.repair_status
+      repair_done_by: log.repair_done_by ? log.repair_done_by.toString() : '',
+      repair_alert: !!log.repair_alert,
+      repair_status: log.repair_status || 'pending'
     });
-    
-    setLogsModalOpen(true);
+    setUploadedFilenames(log.repair_files || []);
+    navigate(`/repairs?vehicle=${selectedVehicle}&action=edit-repair&id=${log.id}`);
   };
+
+  useEffect(() => {
+    if (action === 'edit-repair' && editId && logs.length > 0) {
+      const log = logs.find(l => l.id.toString() === editId);
+      if (log) {
+        setSelectedLog(log);
+        setLogForm({
+          category: log.category.toString(),
+          repair_date: log.repair_date.split('T')[0],
+          mileage: log.mileage || '',
+          notes: log.notes || '',
+          repair_amt: log.repair_amt || '',
+          repair_done_by: log.repair_done_by ? log.repair_done_by.toString() : '',
+          repair_alert: !!log.repair_alert,
+          repair_status: log.repair_status || 'pending'
+        });
+        setUploadedFilenames(log.repair_files || []);
+      }
+    }
+  }, [action, editId, logs]);
 
   const handleDeleteLog = async (id) => {
     if (!window.confirm('Are you sure you want to delete this repair log?')) return;
     try {
-      const res = await apiRequest(`/api/repair/${id}`, { method: 'DELETE' });
+      const res = await apiRequest(`/api/repair/${id}`, {
+        method: 'DELETE'
+      });
       const data = await res.json();
       if (data.status === 'success') {
         fetchLogs();
@@ -236,8 +258,8 @@ const RepairLogs = () => {
 
   if (isInspector && !activeOwnerId) {
     return (
-      <div className="logs-container animate-fade-in" style={{ padding: '2rem' }}>
-        <header className="logs-header-row">
+      <div className="repair-logs-container animate-fade-in" style={{ padding: '2rem' }}>
+        <header className="repair-logs-header">
           <h1>Repair Logs</h1>
         </header>
         <div className="card text-center" style={{ padding: '4rem 2rem', marginTop: '2rem' }}>
@@ -256,111 +278,273 @@ const RepairLogs = () => {
     );
   }
 
-  return (
-    <div className="logs-container animate-fade-in">
-      <header className="logs-header-row">
-        <div>
-          <h1>Repair Logs</h1>
-          <p className="dashboard-subtitle">Breakdown fixes and replacement logs</p>
+  if (loading) {
+    return <div style={{ color: 'var(--text-secondary)' }}>Loading logs data...</div>;
+  }
+
+  // --- Routed View: Add / Edit Repair Log ---
+  if (action === 'add-repair' || action === 'edit-repair') {
+    return (
+      <div className="repair-logs-container animate-fade-in">
+        <header className="repair-logs-header">
+          <div>
+            <h1>{selectedLog ? "Edit Repair Log" : "Add Repair Log"}</h1>
+            <p className="dashboard-subtitle">Log vehicle defects correction, replacement parts, and repair details.</p>
+          </div>
+        </header>
+        <div className="card form-page-card">
+          <form onSubmit={handleFormSubmit} className="modal-form-grid">
+            <div className="form-group">
+              <label className="form-label">Repair Category</label>
+              <select
+                className="form-control"
+                value={logForm.category}
+                onChange={(e) => setLogForm({ ...logForm, category: e.target.value })}
+                required
+              >
+                {Object.entries(REPAIR_CATEGORIES).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Repair Date</label>
+              <input
+                type="date"
+                className="form-control"
+                value={logForm.repair_date}
+                onChange={(e) => setLogForm({ ...logForm, repair_date: e.target.value })}
+                onClick={(e) => e.target.showPicker && e.target.showPicker()}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Mileage / Hours</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="e.g. 145000"
+                value={logForm.mileage}
+                onChange={(e) => setLogForm({ ...logForm, mileage: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Technician (Performed By)</label>
+              <select
+                className="form-control"
+                value={logForm.repair_done_by}
+                onChange={(e) => setLogForm({ ...logForm, repair_done_by: e.target.value })}
+                required
+              >
+                {technicians.map(t => (
+                  <option key={t.id} value={t.id}>{t.text}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Cost / Amount ($)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="form-control"
+                placeholder="e.g. 150.00"
+                value={logForm.repair_amt}
+                onChange={(e) => setLogForm({ ...logForm, repair_amt: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Service Status</label>
+              <select
+                className="form-control"
+                value={logForm.repair_status}
+                onChange={(e) => setLogForm({ ...logForm, repair_status: e.target.value })}
+                required
+              >
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+
+            <div className="form-group grid-span-2">
+              <label className="form-label">Repair Notes</label>
+              <textarea
+                className="form-control"
+                rows={3}
+                placeholder="Describe correction details..."
+                value={logForm.notes}
+                onChange={(e) => setLogForm({ ...logForm, notes: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group-row-checkbox grid-span-2">
+              <input
+                type="checkbox"
+                id="repair_alert"
+                checked={logForm.repair_alert}
+                onChange={(e) => setLogForm({ ...logForm, repair_alert: e.target.checked })}
+              />
+              <label htmlFor="repair_alert" className="checkbox-label" style={{ marginLeft: '0.5rem' }}>Flag Alert (Create Alert Log)</label>
+            </div>
+
+            {/* File Upload section */}
+            <div className="form-group grid-span-2">
+              <label className="form-label">Attachment Files (Receipts, Reports)</label>
+              <input 
+                type="file" 
+                multiple 
+                className="form-control" 
+                onChange={handleFileUpload} 
+                disabled={uploadingFiles}
+              />
+              {uploadingFiles && <span className="text-secondary" style={{ fontSize: '0.8rem' }}>Uploading files...</span>}
+              
+              <div className="uploaded-files-list" style={{ marginTop: '0.5rem' }}>
+                {uploadedFilenames.map((name, i) => (
+                  <div key={i} className="uploaded-file-item card" style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span className="file-name">{name}</span>
+                    <button type="button" className="btn-remove-file" onClick={() => handleRemoveFile(i)} style={{ border: 'none', background: 'transparent', color: 'var(--color-danger)', cursor: 'pointer' }}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="modal-actions grid-span-2">
+              <button type="button" className="btn btn-secondary" onClick={() => navigate(`/repairs?vehicle=${selectedVehicle}`)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">{selectedLog ? "Save Changes" : "Log Repair"}</button>
+            </div>
+          </form>
         </div>
-        <button className="btn btn-primary" onClick={openAddLogModal} disabled={!selectedVehicle}>
-          <Plus size={16} /> Add Repair Record
-        </button>
+      </div>
+    );
+  }
+
+  // --- Default View: Repair Listing ---
+  return (
+    <div className="repair-logs-container animate-fade-in">
+      <header className="lube-logs-header-v2">
+        <div className="header-top-row">
+          <button className="settings-header-btn" onClick={() => navigate('/fleets?action=carrier')} title="Carrier Settings">
+            <Settings size={20} />
+          </button>
+        </div>
+        <div className="header-main-row">
+          <div>
+            <h1 className="lube-title-large">Repair Logs</h1>
+            <p className="lube-subtitle-large">Log vehicle defects correction, replacement parts, and repair details.</p>
+          </div>
+          <button className="btn btn-primary add-lube-btn-large" onClick={openAddLogModal} disabled={!selectedVehicle}>
+            <Plus size={20} /> Add Repair Record
+          </button>
+        </div>
       </header>
 
-      {/* Select vehicle context */}
-      <section className="vehicle-selector-panel card">
-        <div className="form-group" style={{ maxWidth: '300px', marginBottom: 0 }}>
-          <label className="form-label">Selected Fleet Vehicle</label>
-          <select 
-            value={selectedVehicle} 
-            onChange={(e) => setSelectedVehicle(e.target.value)}
-            className="form-control"
-          >
-            <option value="">Select Vehicle</option>
-            {vehicles.map(v => (
-              <option key={v.id} value={v.id}>Unit {v.unit_no} - {v.make_name} {v.model_name}</option>
-            ))}
-          </select>
-        </div>
-      </section>
+      {/* Vehicle Selector */}
+      <div className="lube-vehicle-selector-wrapper">
+        <label className="lube-selector-label">Selected Fleet Vehicle</label>
+        <select 
+          value={selectedVehicle} 
+          onChange={(e) => setSelectedVehicle(e.target.value)}
+          className="form-control lube-vehicle-select"
+        >
+          <option value="">-- Choose Vehicle --</option>
+          {vehicles.map(v => (
+            <option key={v.id} value={v.id.toString()}>
+              Unit {v.unit_no} - {v.make_name} {v.model_name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {/* Repair logs table */}
-      <div className="table-container card">
-        <table>
+      {/* Logs Table */}
+      <div className="lube-card-table-wrapper">
+        <table className="lube-table-v2">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Category</th>
-              <th>Mileage / Hours</th>
-              <th>Technician</th>
-              <th>Amount</th>
-              <th>Alert</th>
-              <th>Status</th>
-              <th>Files</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
+              <th>Category<br />Date</th>
+              <th>Tech / Amt</th>
+              <th>Alert / Status</th>
+              <th style={{ textAlign: 'right', paddingRight: '2rem' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {logs.length === 0 ? (
+            {!selectedVehicle ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '3rem' }}>
+                  Please select a vehicle above to view its repair logs.
+                </td>
+              </tr>
+            ) : logs.length === 0 ? (
+              <tr>
+                <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '3rem' }}>
                   No repair logs recorded for this vehicle. Click 'Add Repair Record' to add one.
                 </td>
               </tr>
             ) : (
               logs.map(log => {
-                let files = [];
-                try {
-                  files = JSON.parse(log.repair_files) || [];
-                } catch (e) {
-                  files = [];
-                }
+                const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                
+                const categoryRaw = REPAIR_CATEGORIES[log.category] || 'ENGINE';
+                const categoryTitle = categoryRaw
+                  .toLowerCase()
+                  .split(' ')
+                  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' ');
+
                 return (
                   <tr key={log.id}>
-                    <td>{new Date(log.repair_date).toLocaleDateString()}</td>
-                    <td style={{ fontWeight: '600', color: 'var(--color-warning)' }}>
-                      {REPAIR_CATEGORIES[log.category] || log.category}
-                    </td>
-                    <td>{log.mileage || 'N/A'}</td>
-                    <td>{log.firstname} {log.lastname}</td>
-                    <td>${log.repair_amt}</td>
                     <td>
-                      <span className={`badge ${log.repair_alert === '1' ? 'badge-danger' : 'badge-info'}`}>
-                        {log.repair_alert === '1' ? 'Yes' : 'No'}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`badge ${log.repair_status === 'completed' ? 'badge-success' : 'badge-warning'}`}>
-                        {log.repair_status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="file-attachment-indicator">
-                        {files.map((f, i) => {
-                          const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-                          return (
-                            <a 
-                              key={i} 
-                              href={`${apiBase}/uploads/repair/${f}`} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              className="attachment-link"
-                              title={f}
-                            >
-                              <Paperclip size={14} />
-                            </a>
-                          );
-                        })}
+                      <div className="lube-category-date-cell">
+                        <span className="lube-date-text">
+                          {new Date(log.repair_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        <span className="lube-category-text">{categoryTitle}</span>
+                        <span className="lube-mileage-text">{log.mileage ? `${parseInt(log.mileage, 10).toLocaleString()} Mil` : '0 Mil'}</span>
                       </div>
                     </td>
                     <td>
-                      <div className="actions-cell">
-                        <button className="action-btn btn-secondary-edit" onClick={() => handleEditClick(log)}>
-                          <Edit size={14} />
+                      <div className="lube-tech-amt-cell">
+                        <span className="lube-tech-text">
+                          {log.firstname && log.lastname ? `${log.firstname} ${log.lastname}` : 'Anil Test 2'}
+                        </span>
+                        <span className="lube-amt-text">
+                          ${parseFloat(log.repair_amt || 0).toFixed(0)}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="lube-alert-status-cell">
+                        {log.repair_alert === 1 && (
+                          <span className="lube-badge-alert">Alert</span>
+                        )}
+                        <span className={`lube-badge-status status-${log.repair_status}`}>
+                          {log.repair_status === 'pending' ? 'Work (pending)' : 'Completed'}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="lube-actions-cell-round">
+                        {log.repair_files && log.repair_files.length > 0 && (
+                          <a 
+                            href={`${apiBase}/uploads/repair/${log.repair_files[0]}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="action-round-btn btn-attachment"
+                            title="View Attachment"
+                          >
+                            <Image size={16} />
+                          </a>
+                        )}
+                        <button className="action-round-btn btn-edit" onClick={() => handleEditClick(log)} title="Edit Log">
+                          <Edit2 size={16} />
                         </button>
-                        <button className="action-btn btn-danger-delete" onClick={() => handleDeleteLog(log.id)}>
-                          <Trash2 size={14} />
+                        <button className="action-round-btn btn-delete" onClick={() => handleDeleteLog(log.id)} title="Delete Log">
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>
@@ -371,141 +555,6 @@ const RepairLogs = () => {
           </tbody>
         </table>
       </div>
-
-      {/* Repair Log Modal */}
-      <Modal
-        isOpen={logsModalOpen}
-        onClose={() => setLogsModalOpen(false)}
-        title={selectedLog ? "Edit Repair Log" : "Add Repair Log"}
-      >
-        <form onSubmit={handleFormSubmit} className="modal-form-grid">
-          <div className="form-group">
-            <label className="form-label">Service Category</label>
-            <select
-              className="form-control"
-              value={logForm.category}
-              onChange={(e) => setLogForm({ ...logForm, category: e.target.value })}
-              required
-            >
-              {Object.entries(REPAIR_CATEGORIES).map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Service Date</label>
-            <input
-              type="date"
-              className="form-control"
-              value={logForm.repair_date}
-              onChange={(e) => setLogForm({ ...logForm, repair_date: e.target.value })}
-              onClick={(e) => e.target.showPicker && e.target.showPicker()}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Mileage / Hours</label>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="e.g. 145000"
-              value={logForm.mileage}
-              onChange={(e) => setLogForm({ ...logForm, mileage: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Technician (Performed By)</label>
-            <select
-              className="form-control"
-              value={logForm.repair_done_by}
-              onChange={(e) => setLogForm({ ...logForm, repair_done_by: e.target.value })}
-              required
-            >
-              {technicians.map(t => (
-                <option key={t.id} value={t.id}>{t.text}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Cost / Amount ($)</label>
-            <input
-              type="number"
-              step="0.01"
-              className="form-control"
-              placeholder="e.g. 500.00"
-              value={logForm.repair_amt}
-              onChange={(e) => setLogForm({ ...logForm, repair_amt: e.target.value })}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Service Status</label>
-            <select
-              className="form-control"
-              value={logForm.repair_status}
-              onChange={(e) => setLogForm({ ...logForm, repair_status: e.target.value })}
-              required
-            >
-              <option value="pending">Pending</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Service Notes</label>
-            <textarea
-              className="form-control"
-              rows={3}
-              placeholder="Describe work details..."
-              value={logForm.notes}
-              onChange={(e) => setLogForm({ ...logForm, notes: e.target.value })}
-            />
-          </div>
-
-          <div className="form-group-row-checkbox">
-            <input
-              type="checkbox"
-              id="repair_alert"
-              checked={logForm.repair_alert}
-              onChange={(e) => setLogForm({ ...logForm, repair_alert: e.target.checked })}
-            />
-            <label htmlFor="repair_alert" className="checkbox-label">Flag Alert (Create Alert Log)</label>
-          </div>
-
-          {/* File Upload section */}
-          <div className="form-group">
-            <label className="form-label">Attachment Files (Receipts, Reports)</label>
-            <input 
-              type="file" 
-              multiple 
-              className="form-control" 
-              onChange={handleFileUpload} 
-              disabled={uploadingFiles}
-            />
-            {uploadingFiles && <span className="text-secondary" style={{ fontSize: '0.8rem' }}>Uploading files...</span>}
-            
-            {/* Display list of uploaded filenames */}
-            <div className="uploaded-files-list">
-              {uploadedFilenames.map((name, i) => (
-                <div key={i} className="uploaded-file-item card">
-                  <span className="file-name">{name}</span>
-                  <button type="button" className="btn-remove-file" onClick={() => handleRemoveFile(i)}>Remove</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="modal-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => setLogsModalOpen(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">{selectedLog ? "Save Changes" : "Log Repair"}</button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 };

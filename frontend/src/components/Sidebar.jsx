@@ -11,13 +11,28 @@ import {
   FileText,
   LogOut,
   Users,
-  X
+  X,
+  Sun,
+  Moon
 } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, owners, activeOwnerId, switchOwner, logout } = useAuth();
   const navigate = useNavigate();
+  const [isLight, setIsLight] = React.useState(document.body.classList.contains('light-theme'));
+
+  const toggleTheme = () => {
+    if (document.body.classList.contains('light-theme')) {
+      document.body.classList.remove('light-theme');
+      localStorage.setItem('theme', 'dark');
+      setIsLight(false);
+    } else {
+      document.body.classList.add('light-theme');
+      localStorage.setItem('theme', 'light');
+      setIsLight(true);
+    }
+  };
 
   const handleOwnerChange = (e) => {
     switchOwner(e.target.value);
@@ -68,6 +83,11 @@ const Sidebar = ({ isOpen, onClose }) => {
           <span>Dashboard</span>
         </NavLink>
 
+        {/* <NavLink to="/drivers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <Users size={18} />
+          <span>Drivers</span>
+        </NavLink> */}
+
         <NavLink to="/fleets" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Car size={18} />
           <span>Fleets</span>
@@ -104,6 +124,13 @@ const Sidebar = ({ isOpen, onClose }) => {
       </nav>
 
       <div className="sidebar-footer">
+        <div className="theme-toggle-container">
+          <button className="theme-toggle-btn" onClick={toggleTheme}>
+            {isLight ? <Moon size={16} /> : <Sun size={16} />}
+            <span>{isLight ? 'Dark Mode' : 'Light Mode'}</span>
+          </button>
+        </div>
+
         <div className="user-profile">
           <div className="user-avatar">
             {user.firstname[0].toUpperCase()}

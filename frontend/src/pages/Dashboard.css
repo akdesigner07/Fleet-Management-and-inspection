@@ -187,3 +187,532 @@
     justify-content: flex-end;
   }
 }
+
+/* Vehicle Compliance Table Styling */
+.vehicle-summary-section {
+  padding: 2rem !important;
+  margin-top: 2rem;
+}
+
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.table-search-input {
+  padding-left: 2.25rem !important;
+  width: 250px;
+  height: 38px;
+}
+
+.table-responsive-container {
+  overflow-x: auto;
+  margin-top: 1.5rem;
+}
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.summary-table th {
+  padding: 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border-color);
+  letter-spacing: 0.05em;
+}
+
+.summary-table td {
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+  color: var(--text-primary);
+}
+
+.summary-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+body.light-theme .summary-table tr:hover td {
+  background: rgba(15, 23, 42, 0.02);
+}
+
+/* Vehicle Cell */
+.vehicle-cell {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.vehicle-img-wrapper {
+  width: 60px;
+  height: 40px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vehicle-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vehicle-placeholder-icon {
+  color: var(--text-muted);
+}
+
+.vehicle-details-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vehicle-title {
+  font-weight: 700;
+  color: var(--color-primary);
+  font-size: 0.95rem;
+}
+
+.vehicle-unit {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Inspection Dates Cell */
+.inspection-cell-no-record {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge-outline-danger {
+  border: 1px solid var(--status-danger);
+  color: var(--status-danger);
+  background: rgba(239, 68, 68, 0.05);
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.inspection-dates-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.date-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  width: 35px;
+}
+
+.date-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.overdue-alert-text {
+  color: var(--status-danger);
+  font-weight: 700;
+}
+
+.edit-pencil-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.edit-pencil-btn:hover {
+  transform: scale(1.2);
+}
+
+.red-pencil {
+  color: var(--status-danger);
+}
+
+.green-pencil {
+  color: var(--color-success);
+}
+
+/* Lube Cell */
+.lube-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.lube-cat {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.lube-date-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.lube-date {
+  color: var(--text-muted);
+}
+
+.view-lube-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.view-lube-btn:hover {
+  transform: scale(1.2);
+}
+
+/* Recommendation column */
+.recommendation-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  display: block;
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recommendation-text:hover {
+  white-space: normal;
+  overflow: visible;
+}
+
+@media (max-width: 768px) {
+  .search-wrapper {
+    width: 100%;
+    margin-top: 1rem;
+  }
+  .table-search-input {
+    width: 100%;
+  }
+}
+
+/* Active Alert Log Design Updates */
+.alert-header-clock-icon-wrapper {
+  background: #e8f0fe;
+  color: #1a73e8;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+
+.active-alerts-count {
+  background: #e8f0fe !important;
+  color: #1a73e8 !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  padding: 0.4rem 0.85rem !important;
+  border-radius: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* New alert-item-v2 block styling */
+.alert-item-v2 {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  padding: 1.25rem !important;
+  display: flex;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.45rem !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.01), 0 2px 4px -1px rgba(0, 0, 0, 0.005) !important;
+  transition: var(--transition-smooth) !important;
+  margin-bottom: 0.85rem !important;
+}
+
+.alert-item-v2:last-child {
+  margin-bottom: 0 !important;
+}
+
+.alert-item-v2:hover {
+  border-color: #cbd5e1 !important;
+  background: #f8fafc !important;
+  transform: translateY(-1px);
+}
+
+.alert-v2-top-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.lube-badge-alert-type {
+  background: #e8f0fe !important;
+  color: #1a73e8 !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  padding: 0.25rem 0.65rem !important;
+  border-radius: 6px !important;
+  text-transform: uppercase;
+}
+
+.alert-v2-date {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+.alert-v2-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0.15rem 0 !important;
+  line-height: 1.3;
+}
+
+.alert-v2-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 1rem;
+}
+
+.alert-v2-notes {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+  flex: 1;
+}
+
+.alert-v2-status {
+  padding: 0.35rem 0.8rem !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+}
+
+.alert-v2-status.status-pending {
+  background: #fdf2f2 !important;
+  color: #ef4444 !important;
+}
+
+.alert-v2-status.status-completed {
+  background: #e6f4ea !important;
+  color: #137333 !important;
+}
+
+@media (max-width: 768px) {
+  .dashboard-container {
+    gap: 1rem !important;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.6rem !important;
+  }
+
+  .alerts-section,
+  .vehicle-summary-section {
+    padding: 1rem !important;
+  }
+  
+  .alert-v2-title {
+    font-size: 0.95rem;
+  }
+  
+  .alert-v2-notes {
+    font-size: 0.78rem;
+  }
+  
+  .alert-header-clock-icon-wrapper {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .active-alerts-count {
+    font-size: 0.68rem !important;
+    padding: 0.3rem 0.65rem !important;
+  }
+}
+
+/* Vehicle Compliance & Status Table Custom Styling */
+.summary-vehicle-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.summary-vehicle-unit {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.summary-vehicle-specs {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.summary-vehicle-usage {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.summary-inspection-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.summary-next-link-row {
+  display: flex;
+  align-items: center;
+}
+
+.summary-next-link {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #137333 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.summary-next-link:hover {
+  text-decoration: underline;
+}
+
+.summary-next-date {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.summary-lube-cell,
+.summary-repair-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.summary-lube-date,
+.summary-repair-date {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+}
+
+.summary-lube-link,
+.summary-repair-cat {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2563eb !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.summary-lube-link:hover,
+.summary-repair-cat:hover {
+  text-decoration: underline;
+}
+
+.summary-lube-status,
+.summary-repair-status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.text-success-green {
+  color: #137333 !important;
+}
+
+.text-danger-red {
+  color: #c5221f !important;
+}
+
+@media (max-width: 768px) {
+  .summary-table th {
+    padding: 0.75rem 0.4rem;
+    font-size: 0.7rem;
+  }
+  .summary-table td {
+    padding: 0.75rem 0.4rem;
+  }
+  .summary-vehicle-unit {
+    font-size: 0.95rem;
+  }
+  .summary-vehicle-specs,
+  .summary-vehicle-usage {
+    font-size: 0.75rem;
+  }
+  .summary-next-link,
+  .summary-next-date,
+  .summary-lube-link,
+  .summary-repair-cat {
+    font-size: 0.75rem;
+  }
+  .summary-lube-status,
+  .summary-repair-status {
+    font-size: 0.68rem;
+  }
+}

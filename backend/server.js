@@ -20,12 +20,23 @@ const { authenticateToken, authorizeOwnerContext } = require('./middleware/auth'
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS
-app.use(cors({
-  origin: '*', // For development, allow React frontend client requests
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-owner-id']
-}));
+// Enable Robust CORS (HTTP & HTTPS support, credentials, and preflight OPTIONS handling)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-owner-id');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -129,10 +140,14 @@ app.post('/api/shares/add-mechanic', authenticateToken, authorizeOwnerContext, s
 
 // 8. Reports & Dashboard
 app.get('/api/reports/summary', authenticateToken, authorizeOwnerContext, reportController.getDashboardSummary);
+app.get('/api/reports/vehicles-details', authenticateToken, authorizeOwnerContext, reportController.getDashboardVehiclesList);
 app.get('/api/reports/more-alerts', authenticateToken, authorizeOwnerContext, reportController.getMoreAlerts);
 app.post('/api/reports/history', authenticateToken, authorizeOwnerContext, reportController.getHistoryReport);
 app.get('/api/reports/export-pdf', authenticateToken, authorizeOwnerContext, reportController.generatePdfReport);
 app.get('/api/reports/export-all-zip', authenticateToken, authorizeOwnerContext, reportController.zipReportsAllVehicles);
+
+// 9. Driver compliance & agreements
+app.use('/api', require('./routes/driverRoutes'));
 
 // Start Server
 app.listen(PORT, () => {

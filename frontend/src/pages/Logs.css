@@ -104,3 +104,264 @@
 .btn-remove-file:hover {
   text-decoration: underline;
 }
+
+/* Lubrication Logs Header v2 */
+.lube-logs-header-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.lube-title-large {
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.lube-subtitle-large {
+  font-size: 1rem;
+  color: #64748b;
+  margin-top: 0.35rem;
+  font-weight: 500;
+}
+
+.add-lube-btn-large {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 0.8rem 1.6rem !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2) !important;
+  transition: var(--transition-smooth) !important;
+}
+
+.add-lube-btn-large:hover {
+  background: #1d4ed8 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3) !important;
+}
+
+/* Vehicle Selector Panel */
+.lube-vehicle-selector-wrapper {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lube-selector-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.lube-vehicle-select {
+  width: 100%;
+  max-width: 500px;
+  padding: 0.85rem 1rem !important;
+  font-size: 0.95rem !important;
+  border-radius: 10px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  transition: var(--transition-smooth);
+}
+
+.lube-vehicle-select:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+}
+
+/* Lube Card Table Wrapper */
+.lube-card-table-wrapper {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+  margin-bottom: 2rem;
+}
+
+.lube-table-v2 {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lube-table-v2 th {
+  background: #f8fafc;
+  padding: 1.15rem 1.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.lube-table-v2 td {
+  padding: 1.5rem 1.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.lube-table-v2 tr:last-child td {
+  border-bottom: none;
+}
+
+/* Custom Column Cells */
+.lube-category-date-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.lube-date-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.lube-category-text {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.lube-mileage-text {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.lube-tech-amt-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.lube-tech-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.lube-amt-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.lube-alert-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.lube-badge-alert {
+  background: #fef2f2;
+  color: #ef4444;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.lube-badge-status {
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+}
+
+.lube-badge-status.status-pending {
+  background: #fef7e0;
+  color: #b06000;
+}
+
+.lube-badge-status.status-completed {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+/* Lube Actions Row styling */
+.lube-actions-cell-round {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+/* Responsive Overrides */
+@media (max-width: 768px) {
+  .header-top-row {
+    display: none !important;
+  }
+  .lube-logs-header-v2 {
+    gap: 1rem;
+  }
+  .header-main-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+  .add-lube-btn-large {
+    width: 100%;
+    justify-content: center;
+  }
+  .lube-title-large {
+    font-size: 2.25rem;
+  }
+  
+  .lube-table-v2 th {
+    padding: 0.75rem 0.4rem;
+    font-size: 0.7rem;
+  }
+  
+  .lube-table-v2 td {
+    padding: 0.75rem 0.4rem;
+  }
+  
+  .lube-category-text {
+    font-size: 0.9rem;
+  }
+  
+  .lube-date-text,
+  .lube-mileage-text {
+    font-size: 0.7rem;
+  }
+  
+  .lube-tech-text {
+    font-size: 0.8rem;
+  }
+  
+  .lube-amt-text {
+    font-size: 0.75rem;
+  }
+  
+  .lube-badge-alert,
+  .lube-badge-status {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.65rem;
+  }
+  
+  .lube-actions-cell-round {
+    gap: 0.3rem;
+  }
+}

@@ -34,6 +34,7 @@ const Reports = () => {
   const [exportType, setExportType] = useState('45_day'); // 45_day, lub_report, repair_report
   const [exportVehicle, setExportVehicle] = useState('all');
   const [exportYear, setExportYear] = useState(new Date().getFullYear());
+  const [exporting, setExporting] = useState(false);
 
   const fetchVehicles = async () => {
     try {
@@ -94,7 +95,7 @@ const Reports = () => {
     fetchHistory();
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (exportVehicle === 'all') {
       alert("Please select a specific vehicle for single PDF export. To export all, use the 'ZIP Export All Fleets' button.");
       return;
@@ -104,17 +105,66 @@ const Reports = () => {
     const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const url = `${apiBase}/api/reports/export-pdf?type=${exportType}&vehicle=${exportVehicle}&year=${exportYear}&owner_id=${ownerId}`;
     
-    // Trigger download by opening window
-    window.open(url, '_blank');
+    setExporting(true);
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-owner-id': ownerId
+        }
+      });
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.message || 'Server returned an error generating the PDF.');
+      }
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `Report_${exportType}_Vehicle_${exportVehicle}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      alert("Error generating PDF: " + err.message);
+    } finally {
+      setExporting(false);
+    }
   };
 
-  const handleExportZip = () => {
+  const handleExportZip = async () => {
     const token = localStorage.getItem('token');
     const ownerId = localStorage.getItem('activeOwnerId');
     const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const url = `${apiBase}/api/reports/export-all-zip?type=${exportType}&year=${exportYear}&owner_id=${ownerId}`;
     
-    window.open(url, '_blank');
+    setExporting(true);
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-owner-id': ownerId
+        }
+      });
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.message || 'Server returned an error generating the ZIP.');
+      }
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `Reports_${exportType}_All_${exportYear}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      alert("Error generating ZIP: " + err.message);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const totalPages = Math.ceil(total / pageSize);
@@ -171,6 +221,7 @@ const Reports = () => {
                   <option value="45_day">45-Day Safety Checklist Matrix</option>
                   <option value="lub_report">Lubrication & Service Report</option>
                   <option value="repair_report">Repair & Maintenance Report</option>
+                  <option value="all">Combined (45-Day + Repair + Lube)</option>
                 </select>
               </div>
 
@@ -205,18 +256,22 @@ const Reports = () => {
               </div>
             </div>
 
-            <div className="export-action-buttons">
-              <button 
-                className="btn btn-primary export-btn" 
-                onClick={handleExportPdf}
-                disabled={exportVehicle === 'all'}
-              >
-                <FileText size={16} /> Compile PDF Report
-              </button>
-              <button className="btn btn-secondary export-btn" onClick={handleExportZip}>
-                <Archive size={16} /> ZIP Export All Fleets
-              </button>
-            </div>
+             <div className="export-action-buttons">
+               <button 
+                 className="btn btn-primary export-btn" 
+                 onClick={handleExportPdf}
+                 disabled={exportVehicle === 'all' || exporting}
+               >
+                 {exporting ? 'Compiling PDF...' : <><FileText size={16} /> Compile PDF Report</>}
+               </button>
+               <button 
+                 className="btn btn-secondary export-btn" 
+                 onClick={handleExportZip}
+                 disabled={exporting}
+               >
+                 {exporting ? 'Generating ZIP...' : <><Archive size={16} /> ZIP Export All Fleets</>}
+               </button>
+             </div>
           </div>
         </section>
 

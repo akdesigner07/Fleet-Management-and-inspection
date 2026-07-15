@@ -212,63 +212,27 @@ const saveMonthInspection = async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Inspection date cannot be in the future (advance inspection not allowed)' });
   }
 
-  // 45-day separation constraint check
-  try {
-    const [otherInspections] = await db.query(
-      'SELECT inspection_date, month FROM inspections_master WHERE inspection_id = ? AND month != ? ORDER BY inspection_date ASC',
-      [fleet_id, month]
-    );
-
-    const newDateObj = new Date(inspection_date);
-    newDateObj.setHours(0, 0, 0, 0);
-    const newTime = newDateObj.getTime();
-
-    for (const ins of otherInspections) {
-      const existingDateObj = new Date(ins.inspection_date);
-      existingDateObj.setHours(0, 0, 0, 0);
-      const existingTime = existingDateObj.getTime();
-      const diffTime = Math.abs(newTime - existingTime);
-      const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-      if (diffDays < 45) {
-        const formatDateStr = (d) => {
-          const yr = d.getFullYear();
-          const mo = String(d.getMonth() + 1).padStart(2, '0');
-          const dy = String(d.getDate()).padStart(2, '0');
-          return `${yr}-${mo}-${dy}`;
-        };
-        return res.status(400).json({
-          status: 'error',
-          message: `Inspections must be at least 45 days apart. There is an inspection on ${formatDateStr(existingDateObj)} (${ins.month.replace('_', '/')}), which is only ${Math.round(diffDays)} days apart.`
-        });
-      }
+  // Process and save base64 signature
+  let signatureFilename = '';
+  if (signature_data.startsWith('data:image/')) {
+    const base64Data = signature_data.replace(/^data:image\/\w+;base64,/, '').replace(/ /g, '+');
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    signatureFilename = `${fleet_id}_${month}.jpg`;
+    const uploadDir = path.join(__dirname, '../uploads/signatures');
+    
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
-  } catch (error) {
-    return res.status(500).json({ status: 'error', message: error.message });
+
+    fs.writeFileSync(path.join(uploadDir, signatureFilename), buffer);
+  } else {
+    signatureFilename = signature_data.substring(signature_data.lastIndexOf('/') + 1);
   }
 
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
-
-    // 1. Process and save base64 signature
-    let signatureFilename = '';
-    if (signature_data.startsWith('data:image/')) {
-      const base64Data = signature_data.replace(/^data:image\/\w+;base64,/, '').replace(/ /g, '+');
-      const buffer = Buffer.from(base64Data, 'base64');
-      
-      signatureFilename = `${fleet_id}_${month}.jpg`;
-      const uploadDir = path.join(__dirname, '../uploads/signatures');
-      
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      fs.writeFileSync(path.join(uploadDir, signatureFilename), buffer);
-    } else {
-      // If it's already a saved filename
-      signatureFilename = signature_data;
-    }
 
     // 2. Check if master record exists
     const [exists] = await connection.query(

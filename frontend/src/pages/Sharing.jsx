@@ -223,7 +223,7 @@ const Sharing = () => {
                   onChange={(e) => setInviteType(e.target.value)}
                 >
                   {roles.map(r => (
-                    <option key={r.id} value={r.id.toString()}>{r.name} ({r.id})</option>
+                    <option key={r.id} value={r.id.toString()}>{r.name}</option>
                   ))}
                 </select>
               </div>

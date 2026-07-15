@@ -39,14 +39,24 @@ const inviteUser = async (req, res) => {
   }
 
   try {
-    // Check if invitation already exists from this owner to this email
-    const [existing] = await db.query(
-      'SELECT id FROM shared_accounts WHERE email = ? AND owner_id = ? AND status != "revoked"',
-      [email, ownerId]
+    // 1. Check if email already exists in registered users (global_limo_user)
+    const [existingUser] = await db.query(
+      'SELECT id FROM global_limo_user WHERE email = ? LIMIT 1',
+      [email]
     );
 
-    if (existing.length > 0) {
-      return res.status(400).json({ status: 'error', message: 'An active invitation was already sent to this email address' });
+    if (existingUser.length > 0) {
+      return res.status(400).json({ status: 'error', message: 'An account with this email address already exists in the system.' });
+    }
+
+    // 2. Check if invitation already exists globally (shared_accounts)
+    const [existingInvite] = await db.query(
+      'SELECT id FROM shared_accounts WHERE email = ? AND status != "revoked" LIMIT 1',
+      [email]
+    );
+
+    if (existingInvite.length > 0) {
+      return res.status(400).json({ status: 'error', message: 'An active invitation or delegation has already been created for this email address.' });
     }
 
     // Generate unique 8-char code

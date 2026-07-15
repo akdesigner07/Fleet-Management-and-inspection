@@ -252,7 +252,528 @@ const getHistoryReport = async (req, res) => {
   }
 };
 
-// 4. Helper to build PDF documents
+// PDF Drawing Helpers
+const drawCheckbox = (doc, x, y, checked, color = '#2563eb') => {
+  doc.save();
+  doc.lineWidth(0.8);
+  doc.strokeColor('#94a3b8');
+  doc.rect(x, y, 9, 9).stroke();
+  
+  if (checked) {
+    doc.fillColor('#e0f2fe');
+    doc.rect(x + 0.5, y + 0.5, 8, 8).fill();
+    
+    doc.lineWidth(1);
+    doc.strokeColor(color);
+    doc.moveTo(x + 2, y + 4.5)
+       .lineTo(x + 4.5, y + 7)
+       .lineTo(x + 7.5, y + 2)
+       .stroke();
+  }
+  doc.restore();
+};
+
+const drawHeaderAndMetadata = (doc, carrier, fleet, year, titleText = 'BUS MAINTENANCE & SAFETY INSPECTION') => {
+  doc.save();
+  doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000');
+  doc.text('STATE OF CALIFORNIA', 30, 20);
+  doc.text('DEPARTMENT OF CALIFORNIA HIGHWAY PATROL', 30, 30);
+  doc.fontSize(12).text(titleText, 30, 42);
+  doc.fontSize(7).font('Helvetica').fillColor('#555555');
+  doc.text('CHP 108A (Rev. 7-05) OPI 062', 30, 56);
+  
+  doc.fontSize(8).font('Helvetica-Bold').fillColor('#000000');
+  doc.text('* Inspection of these items meet the minimum requirements of 34505 CVC', 450, 42, { align: 'right', width: 332 });
+  
+  const yStart = 70;
+  doc.lineWidth(0.8);
+  doc.strokeColor('#000000');
+  
+  doc.rect(30, yStart, 752, 48).stroke();
+  doc.moveTo(30, yStart + 24).lineTo(782, yStart + 24).stroke();
+  doc.moveTo(280, yStart).lineTo(280, yStart + 48).stroke();
+  doc.moveTo(530, yStart).lineTo(530, yStart + 48).stroke();
+  
+  doc.fontSize(6).font('Helvetica-Bold');
+  doc.text('CARRIER NAME', 35, yStart + 4);
+  doc.fontSize(8).font('Helvetica');
+  doc.text(carrier.carrier_name || 'N/A', 35, yStart + 12, { width: 240, ellipsis: true });
+  
+  doc.fontSize(6).font('Helvetica-Bold');
+  doc.text('UNIT NUMBER', 285, yStart + 4);
+  doc.fontSize(8).font('Helvetica');
+  doc.text(fleet.unit_no || 'N/A', 285, yStart + 12);
+  
+  doc.fontSize(6).font('Helvetica-Bold');
+  doc.text('YEAR', 535, yStart + 4);
+  doc.fontSize(8).font('Helvetica');
+  doc.text(year.toString(), 535, yStart + 12);
+  
+  doc.fontSize(6).font('Helvetica-Bold');
+  doc.text('MAKE', 35, yStart + 28);
+  doc.fontSize(8).font('Helvetica');
+  doc.text(fleet.make_name || 'N/A', 35, yStart + 36, { width: 240, ellipsis: true });
+  
+  doc.fontSize(6).font('Helvetica-Bold');
+  doc.text('MODEL', 285, yStart + 28);
+  doc.fontSize(8).font('Helvetica');
+  doc.text(fleet.model_name || 'N/A', 285, yStart + 36, { width: 240, ellipsis: true });
+  
+  doc.fontSize(6).font('Helvetica-Bold');
+  doc.text('LICENSE NUMBER', 535, yStart + 28);
+  doc.fontSize(8).font('Helvetica');
+  doc.text(fleet.license_no || 'N/A', 535, yStart + 36);
+  doc.restore();
+};
+
+const draw45DayGridHeader = (doc, monthlyInspections) => {
+  doc.save();
+  const yStart = 70;
+  doc.lineWidth(0.8);
+  doc.strokeColor('#000000');
+  doc.rect(290, yStart, 492, 48).stroke();
+  doc.moveTo(290, yStart + 12).lineTo(782, yStart + 12).stroke();
+  doc.moveTo(290, yStart + 24).lineTo(782, yStart + 24).stroke();
+  doc.moveTo(290, yStart + 36).lineTo(782, yStart + 36).stroke();
+
+  const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  for (let i = 0; i < 12; i++) {
+    const x = 290 + i * 41;
+    if (i > 0) {
+      doc.moveTo(x, yStart).lineTo(x, yStart + 48).stroke();
+    }
+    doc.moveTo(x + 20.5, yStart + 36).lineTo(x + 20.5, yStart + 48).stroke();
+
+    doc.fontSize(5).font('Helvetica-Bold');
+    doc.text('MILEAGE', x, yStart + 3, { width: 41, align: 'center' });
+
+    const monthKey = (i + 1).toString();
+    const insp = monthlyInspections[monthKey];
+    const mileageVal = insp ? insp.mileage : '';
+    doc.fontSize(6).font('Helvetica');
+    doc.text(mileageVal.toString(), x, yStart + 14, { width: 41, align: 'center' });
+
+    doc.fontSize(6).font('Helvetica-Bold');
+    doc.text(monthNames[i], x, yStart + 26, { width: 41, align: 'center' });
+
+    doc.fontSize(5).font('Helvetica-Bold');
+    doc.text('OK', x, yStart + 39, { width: 20.5, align: 'center' });
+    doc.text('DEF', x + 20.5, yStart + 39, { width: 20.5, align: 'center' });
+  }
+  doc.restore();
+};
+
+const drawSignatureCell = (doc, x, y, width, monthName, insp) => {
+  doc.save();
+  doc.lineWidth(0.8);
+  doc.strokeColor('#000000');
+  doc.rect(x, y, width, 55).stroke();
+
+  doc.fontSize(6).font('Helvetica-Bold').fillColor('#000000');
+  doc.text(`${monthName.toUpperCase()} INSPECTION`, x, y + 4, { width, align: 'center' });
+
+  doc.moveTo(x, y + 42).lineTo(x + width, y + 42).stroke();
+  doc.fontSize(5).font('Helvetica-Bold');
+  doc.text('DATE', x + 5, y + 46);
+
+  if (insp) {
+    const dateStr = insp.inspection_date ? new Date(insp.inspection_date).toISOString().split('T')[0] : '';
+    doc.fontSize(7).font('Helvetica');
+    doc.text(dateStr, x + 30, y + 45);
+
+    if (insp.signature) {
+      const sigPath = path.join(__dirname, '../uploads/signatures', insp.signature);
+      if (fs.existsSync(sigPath)) {
+        try {
+          doc.image(sigPath, x + (width - 75) / 2, y + 12, { width: 75, height: 28 });
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    }
+  }
+  doc.restore();
+};
+
+const render45DayReport = async (doc, carrier, fleet, year, drawHeaders = true) => {
+  const [masters] = await db.query(
+    `SELECT m.*, u.firstname, u.lastname 
+     FROM inspections_master m
+     LEFT JOIN global_limo_user u ON u.id = m.updated_by
+     WHERE m.inspection_id = ? AND m.month LIKE ?`,
+    [fleet.id, `%_${year}`]
+  );
+
+  const monthlyInspections = {};
+  const resultsMap = {};
+
+  for (const m of masters) {
+    const monthNum = m.month.split('_')[0];
+    monthlyInspections[monthNum] = m;
+    
+    const [results] = await db.query(
+      `SELECT item_id, status, note FROM inspection_results WHERE inspection_id = ?`,
+      [m.id]
+    );
+    resultsMap[monthNum] = {};
+    for (const r of results) {
+      resultsMap[monthNum][r.item_id] = { status: r.status, note: r.note };
+    }
+  }
+
+  const [items] = await db.query(
+    `SELECT * FROM inspection_items 
+     WHERE parent_id > 0 
+     ORDER BY id ASC`
+  );
+
+  if (drawHeaders) {
+    drawHeaderAndMetadata(doc, carrier, fleet, year, 'BUS MAINTENANCE & SAFETY INSPECTION');
+    draw45DayGridHeader(doc, monthlyInspections);
+  }
+  
+  let currentY = 118;
+  const page1Items = items.filter(item => item.item_no >= 1 && item.item_no <= 19);
+
+  for (const item of page1Items) {
+    doc.lineWidth(0.5);
+    doc.strokeColor('#cccccc');
+    doc.moveTo(30, currentY + 20).lineTo(782, currentY + 20).stroke();
+
+    doc.fontSize(7).font('Helvetica-Bold').fillColor('#000000');
+    doc.text(item.item_no.toString(), 30, currentY + 6, { width: 25, align: 'center' });
+
+    doc.fontSize(7).font('Helvetica');
+    doc.text(item.description, 58, currentY + 6, { width: 230, ellipsis: true });
+
+    for (let i = 0; i < 12; i++) {
+      const monthKey = (i + 1).toString();
+      const monthResults = resultsMap[monthKey] || {};
+      const itemResult = monthResults[item.id] || { status: 'null' };
+      
+      const xMonth = 290 + i * 41;
+      doc.moveTo(xMonth, currentY).lineTo(xMonth, currentY + 20).stroke();
+
+      const okChecked = itemResult.status === 'OK';
+      drawCheckbox(doc, xMonth + 5.75, currentY + 5.5, okChecked, '#16a34a');
+
+      const defChecked = itemResult.status === 'DEF';
+      drawCheckbox(doc, xMonth + 26.25, currentY + 5.5, defChecked, '#dc2626');
+    }
+    currentY += 20;
+  }
+
+  doc.lineWidth(1);
+  doc.strokeColor('#000000');
+  doc.rect(30, 118, 752, 19 * 20).stroke();
+  doc.moveTo(55, 118).lineTo(55, 118 + (19 * 20)).stroke();
+  doc.moveTo(290, 118).lineTo(290, 118 + (19 * 20)).stroke();
+  for (let i = 1; i < 12; i++) {
+    const x = 290 + i * 41;
+    doc.moveTo(x, 118).lineTo(x, 118 + (19 * 20)).stroke();
+  }
+
+  doc.addPage({ margin: 30, size: 'A4', layout: 'landscape' });
+  currentY = 40;
+  const page2Items = items.filter(item => item.item_no >= 20 && item.item_no <= 40);
+
+  for (const item of page2Items) {
+    doc.lineWidth(0.5);
+    doc.strokeColor('#cccccc');
+    doc.moveTo(30, currentY + 17).lineTo(782, currentY + 17).stroke();
+
+    doc.fontSize(7).font('Helvetica-Bold').fillColor('#000000');
+    doc.text(item.item_no.toString(), 30, currentY + 5, { width: 25, align: 'center' });
+
+    doc.fontSize(7).font('Helvetica');
+    doc.text(item.description, 58, currentY + 5, { width: 230, ellipsis: true });
+
+    for (let i = 0; i < 12; i++) {
+      const monthKey = (i + 1).toString();
+      const monthResults = resultsMap[monthKey] || {};
+      const itemResult = monthResults[item.id] || { status: 'null' };
+      
+      const xMonth = 290 + i * 41;
+      doc.moveTo(xMonth, currentY).lineTo(xMonth, currentY + 17).stroke();
+
+      const okChecked = itemResult.status === 'OK';
+      drawCheckbox(doc, xMonth + 5.75, currentY + 4, okChecked, '#16a34a');
+
+      const defChecked = itemResult.status === 'DEF';
+      drawCheckbox(doc, xMonth + 26.25, currentY + 4, defChecked, '#dc2626');
+    }
+    currentY += 17;
+  }
+
+  doc.lineWidth(1);
+  doc.strokeColor('#000000');
+  doc.rect(30, 40, 752, 21 * 17).stroke();
+  doc.moveTo(55, 40).lineTo(55, 40 + (21 * 17)).stroke();
+  doc.moveTo(290, 40).lineTo(290, 40 + (21 * 17)).stroke();
+  for (let i = 1; i < 12; i++) {
+    const x = 290 + i * 41;
+    doc.moveTo(x, 40).lineTo(x, 40 + (21 * 17)).stroke();
+  }
+
+  doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000');
+  doc.text('SIGNATURES OF INSPECTORS', 30, 415);
+
+  const sigMonthsPage2 = ['January', 'February', 'March', 'April'];
+  for (let i = 0; i < 4; i++) {
+    const x = 30 + i * 188;
+    const monthNum = (i + 1).toString();
+    drawSignatureCell(doc, x, 430, 188, sigMonthsPage2[i], monthlyInspections[monthNum]);
+  }
+
+  doc.addPage({ margin: 30, size: 'A4', layout: 'landscape' });
+  doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000');
+  doc.text('SIGNATURES OF INSPECTORS (CONTINUED)', 30, 40);
+
+  const sigMonthsPage3Row1 = ['May', 'June', 'July', 'August'];
+  for (let i = 0; i < 4; i++) {
+    const x = 30 + i * 188;
+    const monthNum = (i + 5).toString();
+    drawSignatureCell(doc, x, 55, 188, sigMonthsPage3Row1[i], monthlyInspections[monthNum]);
+  }
+
+  const sigMonthsPage3Row2 = ['September', 'October', 'November', 'December'];
+  for (let i = 0; i < 4; i++) {
+    const x = 30 + i * 188;
+    const monthNum = (i + 9).toString();
+    drawSignatureCell(doc, x, 120, 188, sigMonthsPage3Row2[i], monthlyInspections[monthNum]);
+  }
+};
+
+const renderRepairReport = async (doc, carrier, fleet, year, drawHeaders = true) => {
+  const [repairLogs] = await db.query(
+    `SELECT r.*, TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, ''))) as tech_name 
+     FROM inspection_repair r
+     LEFT JOIN global_limo_user u ON u.id = r.repair_done_by
+     WHERE r.inspection_id = ? AND YEAR(r.repair_date) = ?
+     ORDER BY r.repair_date DESC`,
+    [fleet.id, year]
+  );
+
+  if (drawHeaders) {
+    drawHeaderAndMetadata(doc, carrier, fleet, year, 'REPAIR REPORT');
+  }
+
+  const yHeader = 130;
+  doc.lineWidth(0.8);
+  doc.strokeColor('#000000');
+  doc.rect(30, yHeader, 752, 24).stroke();
+  doc.moveTo(430, yHeader).lineTo(430, yHeader + 24).stroke();
+  doc.moveTo(570, yHeader).lineTo(570, yHeader + 24).stroke();
+  
+  doc.fillColor('#e2e8f0');
+  doc.rect(30.5, yHeader + 0.5, 399, 23).fill();
+  doc.rect(430.5, yHeader + 0.5, 139, 23).fill();
+  doc.rect(570.5, yHeader + 0.5, 211, 23).fill();
+  
+  doc.fontSize(7).font('Helvetica-Bold').fillColor('#000000');
+  doc.text('MILEAGE OR HOURS', 30, yHeader + 9, { width: 400, align: 'center' });
+  doc.text('DATE', 430, yHeader + 9, { width: 140, align: 'center' });
+  doc.text('REPAIR', 570, yHeader + 9, { width: 212, align: 'center' });
+  
+  let currentY = 154;
+  if (repairLogs.length === 0) {
+    doc.rect(30, currentY, 752, 24).stroke();
+    doc.fontSize(8).font('Helvetica').text('No repair logs found for this vehicle in the selected year.', 35, currentY + 8);
+  } else {
+    for (const log of repairLogs) {
+      if (currentY > 530) {
+        doc.addPage({ margin: 30, size: 'A4', layout: 'landscape' });
+        doc.lineWidth(0.8);
+        doc.strokeColor('#000000');
+        doc.rect(30, 30, 752, 24).stroke();
+        doc.moveTo(430, 30).lineTo(430, 54).stroke();
+        doc.moveTo(570, 30).lineTo(570, 54).stroke();
+        doc.fillColor('#e2e8f0');
+        doc.rect(30.5, 30.5, 399, 23).fill();
+        doc.rect(430.5, 30.5, 139, 23).fill();
+        doc.rect(570.5, 30.5, 211, 23).fill();
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('#000000');
+        doc.text('MILEAGE OR HOURS', 30, 39, { width: 400, align: 'center' });
+        doc.text('DATE', 430, 39, { width: 140, align: 'center' });
+        doc.text('REPAIR', 570, 39, { width: 212, align: 'center' });
+        currentY = 54;
+      }
+      
+      const noteText = log.notes || 'No description.';
+      const textHeight = doc.heightOfString(noteText, { width: 202, fontSize: 7 });
+      const rowHeight = Math.max(24, textHeight + 10);
+      
+      doc.lineWidth(0.5);
+      doc.strokeColor('#cccccc');
+      doc.rect(30, currentY, 752, rowHeight).stroke();
+      doc.moveTo(430, currentY).lineTo(430, currentY + rowHeight).stroke();
+      doc.moveTo(570, currentY).lineTo(570, currentY + rowHeight).stroke();
+      
+      doc.fontSize(7).font('Helvetica').fillColor('#000000');
+      doc.text(log.mileage ? log.mileage.toString() : 'N/A', 35, currentY + (rowHeight - 7)/2);
+      
+      const dateStr = log.repair_date ? new Date(log.repair_date).toLocaleDateString() : 'N/A';
+      doc.text(dateStr, 435, currentY + (rowHeight - 7)/2);
+      
+      doc.text(noteText, 575, currentY + 5, { width: 202 });
+      
+      currentY += rowHeight;
+    }
+  }
+};
+
+const renderLubeReport = async (doc, carrier, fleet, year, drawHeaders = true) => {
+  const [lubLogs] = await db.query(
+    `SELECT l.*, TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, ''))) as tech_name 
+     FROM inspection_lub l
+     LEFT JOIN global_limo_user u ON u.id = l.lub_done_by
+     WHERE l.inspection_id = ? AND YEAR(l.lub_date) = ?
+     ORDER BY l.lub_date DESC`,
+    [fleet.id, year]
+  );
+
+  if (drawHeaders) {
+    doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000');
+    doc.text('LUBRICATION AND INSPECTION REPORT', 30, 35);
+    
+    const yMeta = 55;
+    doc.lineWidth(0.8);
+    doc.strokeColor('#000000');
+    doc.rect(30, yMeta, 752, 48).stroke();
+    
+    doc.moveTo(30, yMeta + 24).lineTo(782, yMeta + 24).stroke();
+    doc.moveTo(280, yMeta).lineTo(280, yMeta + 48).stroke();
+    doc.moveTo(530, yMeta).lineTo(530, yMeta + 48).stroke();
+    
+    doc.fontSize(6).font('Helvetica-Bold');
+    doc.text('CARRIER NAME', 35, yMeta + 4);
+    doc.fontSize(8).font('Helvetica');
+    doc.text(carrier.carrier_name || 'N/A', 35, yMeta + 12);
+    
+    doc.fontSize(6).font('Helvetica-Bold');
+    doc.text('UNIT NUMBER', 285, yMeta + 4);
+    doc.fontSize(8).font('Helvetica');
+    doc.text(fleet.unit_no || 'N/A', 285, yMeta + 12);
+    
+    doc.fontSize(6).font('Helvetica-Bold');
+    doc.text('YEAR', 535, yMeta + 4);
+    doc.fontSize(8).font('Helvetica');
+    doc.text(year.toString(), 535, yMeta + 12);
+    
+    doc.fontSize(6).font('Helvetica-Bold');
+    doc.text('MAKE', 35, yMeta + 28);
+    doc.fontSize(8).font('Helvetica');
+    doc.text(fleet.make_name || 'N/A', 35, yMeta + 36);
+    
+    doc.fontSize(6).font('Helvetica-Bold');
+    doc.text('MODEL', 285, yMeta + 28);
+    doc.fontSize(8).font('Helvetica');
+    doc.text(fleet.model_name || 'N/A', 285, yMeta + 36);
+    
+    doc.fontSize(6).font('Helvetica-Bold');
+    doc.text('LICENSE NUMBER', 535, yMeta + 28);
+    doc.fontSize(8).font('Helvetica');
+    doc.text(fleet.license_no || 'N/A', 535, yMeta + 36);
+  }
+
+  const yHeader = 115;
+  const colWidths = [60, 48, 25, 48, 48, 48, 48, 50, 48, 50, 44, 50, 44, 48, 48, 45];
+  const colNames = [
+    'MILEAGE OR HOURS',
+    'DATE',
+    'BY',
+    'LUBRICATION',
+    'OIL CHANGE',
+    'OIL ADDED',
+    'FILTER CHANGE',
+    'TRANSMISSION',
+    'DIFFERENTIAL',
+    'WHEEL BEARINGS',
+    'BATTERIES',
+    'BRAKE ADJUSTMENT',
+    'TIRE PRESSURE',
+    'A LEVEL SERVICE',
+    'B LEVEL SERVICE',
+    'C LEVEL SERVICE'
+  ];
+
+  doc.lineWidth(0.8);
+  doc.strokeColor('#000000');
+  doc.rect(30, yHeader, 752, 40).stroke();
+  
+  doc.fillColor('#e2e8f0');
+  doc.rect(30.5, yHeader + 0.5, 751, 39).fill();
+  doc.fillColor('#000000');
+
+  let xCurrent = 30;
+  for (let i = 0; i < 16; i++) {
+    if (i > 0) {
+      doc.moveTo(xCurrent, yHeader).lineTo(xCurrent, yHeader + 40).stroke();
+    }
+    doc.fontSize(4.5).font('Helvetica-Bold');
+    doc.text(colNames[i], xCurrent + 2, yHeader + 12, { width: colWidths[i] - 4, align: 'center' });
+    xCurrent += colWidths[i];
+  }
+
+  let currentY = 155;
+  if (lubLogs.length === 0) {
+    doc.rect(30, currentY, 752, 24).stroke();
+    doc.fontSize(8).font('Helvetica').text('No lubrication logs found for this vehicle in the selected year.', 35, currentY + 8);
+  } else {
+    for (const log of lubLogs) {
+      if (currentY > 530) {
+        doc.addPage({ margin: 30, size: 'A4', layout: 'landscape' });
+        doc.lineWidth(0.8);
+        doc.strokeColor('#000000');
+        doc.rect(30, 30, 752, 40).stroke();
+        doc.fillColor('#e2e8f0');
+        doc.rect(30.5, 30.5, 751, 39).fill();
+        doc.fillColor('#000000');
+        let xc = 30;
+        for (let i = 0; i < 16; i++) {
+          if (i > 0) {
+            doc.moveTo(xc, 30).lineTo(xc, 70).stroke();
+          }
+          doc.fontSize(4.5).font('Helvetica-Bold');
+          doc.text(colNames[i], xc + 2, 42, { width: colWidths[i] - 4, align: 'center' });
+          xc += colWidths[i];
+        }
+        currentY = 70;
+      }
+
+      doc.lineWidth(0.5);
+      doc.strokeColor('#cccccc');
+      doc.rect(30, currentY, 752, 24).stroke();
+
+      let xc = 30;
+      doc.fontSize(7).font('Helvetica');
+      doc.text(log.mileage ? log.mileage.toString() : 'N/A', xc + 2, currentY + 9, { width: colWidths[0] - 4, align: 'center' });
+      xc += colWidths[0];
+
+      doc.moveTo(xc, currentY).lineTo(xc, currentY + 24).stroke();
+      const dateStr = log.lub_date ? new Date(log.lub_date).toLocaleDateString() : 'N/A';
+      doc.text(dateStr, xc + 2, currentY + 9, { width: colWidths[1] - 4, align: 'center' });
+      xc += colWidths[1];
+
+      doc.moveTo(xc, currentY).lineTo(xc, currentY + 24).stroke();
+      const techInitials = log.tech_name ? log.tech_name.split(' ').map(n => n[0]).join('').toUpperCase() : 'N/A';
+      doc.text(techInitials, xc + 2, currentY + 9, { width: colWidths[2] - 4, align: 'center' });
+      xc += colWidths[2];
+
+      for (let c = 1; c <= 13; c++) {
+        doc.moveTo(xc, currentY).lineTo(xc, currentY + 24).stroke();
+        const isMatch = log.category.toString() === c.toString();
+        const colW = colWidths[c + 2];
+        const boxX = xc + (colW - 9) / 2;
+        const boxY = currentY + 7.5;
+        drawCheckbox(doc, boxX, boxY, isMatch, '#16a34a');
+        xc += colW;
+      }
+      currentY += 24;
+    }
+  }
+};
+
 const generatePdfReport = async (req, res) => {
   const { type, vehicle, year } = req.query;
   const ownerId = req.ownerId;
@@ -262,11 +783,9 @@ const generatePdfReport = async (req, res) => {
   }
 
   try {
-    // Fetch carrier info
     const [carriers] = await db.query('SELECT * FROM carriers WHERE user_id = ? LIMIT 1', [ownerId]);
     const carrier = carriers[0] || { carrier_name: 'N/A', license_number: 'N/A' };
 
-    // Fetch fleet details
     const [fleets] = await db.query(
       `SELECT i.*, mk.name as make_name, md.name as model_name 
        FROM inspections i
@@ -281,115 +800,28 @@ const generatePdfReport = async (req, res) => {
     }
     const fleet = fleets[0];
 
-    const doc = new PDFDocument({ margin: 30, size: 'A4' });
+    const doc = new PDFDocument({ 
+      margin: 30, 
+      size: 'A4', 
+      layout: 'landscape' 
+    });
+    
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=Report_${type}_${fleet.unit_no}.pdf`);
     doc.pipe(res);
 
-    // Title / Header Card
-    doc.fontSize(16).text('VEHICLE INSPECTION & MAINTENANCE REPORT', { align: 'center' }).moveDown();
-    
-    doc.fontSize(10);
-    doc.text(`Carrier Name: ${carrier.carrier_name}`);
-    doc.text(`License No: ${carrier.license_number || 'N/A'}`);
-    doc.text(`Vehicle Unit No: ${fleet.unit_no}`);
-    doc.text(`License Plate: ${fleet.license_no}`);
-    doc.text(`Make/Model/Year: ${fleet.make_name || 'N/A'} / ${fleet.model_name || 'N/A'} / ${fleet.year}`);
-    doc.text(`Selected Year: ${year}`);
-    doc.moveDown().text('---------------------------------------------------------------------------------', { align: 'center' }).moveDown();
-
     if (type === 'lub_report') {
-      doc.fontSize(12).text('LUBRICATION & SERVICE HISTORY', { underline: true }).moveDown(0.5);
-      
-      const [lubLogs] = await db.query(
-        `SELECT l.*, TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, ''))) as tech_name 
-         FROM inspection_lub l
-         LEFT JOIN global_limo_user u ON u.id = l.lub_done_by
-         WHERE l.inspection_id = ? AND YEAR(l.lub_date) = ?
-         ORDER BY l.lub_date DESC`,
-        [vehicle, year]
-      );
-
-      if (lubLogs.length === 0) {
-        doc.fontSize(10).text('No lubrication logs found for this vehicle in the selected year.');
-      } else {
-        lubLogs.forEach((log, index) => {
-          doc.fontSize(10).text(`${index + 1}. Date: ${new Date(log.lub_date).toLocaleDateString()} | Mileage: ${log.mileage || 'N/A'} | Done By: ${log.tech_name || 'N/A'}`);
-          doc.text(`   Category: ${log.category} | Amount: $${log.lub_amt} | Status: ${log.lub_status}`);
-          doc.text(`   Notes: ${log.notes || 'No notes.'}`).moveDown(0.5);
-        });
-      }
+      await renderLubeReport(doc, carrier, fleet, year, true);
     } else if (type === 'repair_report') {
-      doc.fontSize(12).text('REPAIR & MAINTENANCE LOGS', { underline: true }).moveDown(0.5);
-
-      const [repairLogs] = await db.query(
-        `SELECT r.*, TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, ''))) as tech_name 
-         FROM inspection_repair r
-         LEFT JOIN global_limo_user u ON u.id = r.repair_done_by
-         WHERE r.inspection_id = ? AND YEAR(r.repair_date) = ?
-         ORDER BY r.repair_date DESC`,
-        [vehicle, year]
-      );
-
-      if (repairLogs.length === 0) {
-        doc.fontSize(10).text('No repair logs found for this vehicle in the selected year.');
-      } else {
-        repairLogs.forEach((log, index) => {
-          doc.fontSize(10).text(`${index + 1}. Date: ${new Date(log.repair_date).toLocaleDateString()} | Mileage: ${log.mileage || 'N/A'} | Done By: ${log.tech_name || 'N/A'}`);
-          doc.text(`   Category: ${log.category} | Amount: $${log.repair_amt} | Status: ${log.repair_status}`);
-          doc.text(`   Notes: ${log.notes || 'No notes.'}`).moveDown(0.5);
-        });
-      }
+      await renderRepairReport(doc, carrier, fleet, year, true);
+    } else if (type === 'all') {
+      await render45DayReport(doc, carrier, fleet, year, true);
+      doc.addPage({ margin: 30, size: 'A4', layout: 'landscape' });
+      await renderRepairReport(doc, carrier, fleet, year, true);
+      doc.addPage({ margin: 30, size: 'A4', layout: 'landscape' });
+      await renderLubeReport(doc, carrier, fleet, year, true);
     } else {
-      // 45-day inspection report
-      doc.fontSize(12).text('45-DAY PERIODIC SAFETY INSPECTIONS', { underline: true }).moveDown(0.5);
-
-      const [masters] = await db.query(
-        `SELECT m.*, u.firstname, u.lastname 
-         FROM inspections_master m
-         LEFT JOIN global_limo_user u ON u.id = m.updated_by
-         WHERE m.inspection_id = ? AND m.month LIKE ?
-         ORDER BY m.inspection_date DESC`,
-        [vehicle, `%_${year}`]
-      );
-
-      if (masters.length === 0) {
-        doc.fontSize(10).text('No monthly inspections recorded for this vehicle in the selected year.');
-      } else {
-        for (const m of masters) {
-          doc.fontSize(10).text(`Month: ${m.month} | Inspected Date: ${new Date(m.inspection_date).toLocaleDateString()} | Mileage: ${m.mileage}`);
-          doc.text(`Inspected By: ${m.firstname || ''} ${m.lastname || ''} | Signed Date: ${new Date(m.signature_date).toLocaleDateString()}`);
-
-          // Fetch items for this master
-          const [results] = await db.query(
-            `SELECT r.status, r.note, i.description 
-             FROM inspection_results r 
-             JOIN inspection_items i ON i.id = r.item_id 
-             WHERE r.inspection_id = ?`,
-            [m.id]
-          );
-
-          if (results.length > 0) {
-            doc.text('Checklist Results:');
-            results.forEach(res => {
-              if (res.status !== 'null') {
-                doc.text(`   [${res.status}] ${res.description} ${res.note ? `(Note: ${res.note})` : ''}`);
-              }
-            });
-          }
-          
-          // Render signature image if available
-          if (m.signature) {
-            const sigPath = path.join(__dirname, '../uploads/signatures', m.signature);
-            if (fs.existsSync(sigPath)) {
-              doc.moveDown(0.2);
-              doc.text('Signature:');
-              doc.image(sigPath, { width: 100, height: 40 });
-            }
-          }
-          doc.moveDown().text('-----------------------------------------------------').moveDown(0.5);
-        }
-      }
+      await render45DayReport(doc, carrier, fleet, year, true);
     }
 
     doc.end();
@@ -408,10 +840,17 @@ const zipReportsAllVehicles = async (req, res) => {
   }
 
   try {
-    const archiverModule = await import('archiver');
-    const archiver = archiverModule.default;
+    const { ZipArchive } = require('archiver');
 
-    const [fleets] = await db.query('SELECT id, unit_no FROM inspections WHERE user_id = ?', [ownerId]);
+    const [fleets] = await db.query(
+      `SELECT i.*, mk.name as make_name, md.name as model_name 
+       FROM inspections i
+       LEFT JOIN carmake_tbl mk ON mk.id = i.make
+       LEFT JOIN carmodal_tbl md ON md.id = i.model
+       WHERE i.user_id = ?`, 
+      [ownerId]
+    );
+
     if (fleets.length === 0) {
       return res.status(404).json({ status: 'error', message: 'No vehicles found to report' });
     }
@@ -419,50 +858,122 @@ const zipReportsAllVehicles = async (req, res) => {
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename=Reports_${type}_All_${year}.zip`);
 
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
     archive.pipe(res);
 
-    // Fetch carrier details once
     const [carriers] = await db.query('SELECT * FROM carriers WHERE user_id = ? LIMIT 1', [ownerId]);
     const carrier = carriers[0] || { carrier_name: 'N/A', license_number: 'N/A' };
 
     for (const fleet of fleets) {
-      const doc = new PDFDocument({ margin: 30, size: 'A4' });
+      const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
       
-      // We will write the PDF to a buffer using custom promise
-      const pdfBufferPromise = new Promise((resolve) => {
+      const pdfBufferPromise = new Promise(async (resolve) => {
         const buffers = [];
         doc.on('data', buffers.push.bind(buffers));
         doc.on('end', () => {
           resolve(Buffer.concat(buffers));
         });
 
-        doc.fontSize(16).text('VEHICLE INSPECTION & MAINTENANCE REPORT', { align: 'center' }).moveDown();
-        doc.fontSize(10);
-        doc.text(`Carrier Name: ${carrier.carrier_name}`);
-        doc.text(`Vehicle Unit No: ${fleet.unit_no}`);
-        doc.text(`Selected Year: ${year}`);
-        doc.moveDown().text('----------------------------------------------------').moveDown();
-
-        if (type === 'lub_report' || type === 'all') {
-          doc.fontSize(12).text('LUBRICATION & SERVICE HISTORY', { underline: true }).moveDown(0.5);
-          // (Populate simply for buffer)
-          doc.text('Lubrication details compiled.');
-        }
-        if (type === 'repair_report' || type === 'all') {
-          doc.fontSize(12).text('REPAIR & MAINTENANCE LOGS', { underline: true }).moveDown(0.5);
-          doc.text('Repair details compiled.');
+        try {
+          if (type === 'lub_report') {
+            await renderLubeReport(doc, carrier, fleet, year, true);
+          } else if (type === 'repair_report') {
+            await renderRepairReport(doc, carrier, fleet, year, true);
+          } else if (type === 'all') {
+            await render45DayReport(doc, carrier, fleet, year, true);
+            doc.addPage({ margin: 30, size: 'A4', layout: 'landscape' });
+            await renderRepairReport(doc, carrier, fleet, year, true);
+            doc.addPage({ margin: 30, size: 'A4', layout: 'landscape' });
+            await renderLubeReport(doc, carrier, fleet, year, true);
+          } else {
+            await render45DayReport(doc, carrier, fleet, year, true);
+          }
+        } catch (err) {
+          console.error(`Error rendering PDF for fleet ${fleet.unit_no}:`, err);
         }
 
         doc.end();
       });
 
       const buffer = await pdfBufferPromise;
-      archive.append(buffer, { name: `Report_${fleet.unit_no}.pdf` });
+      archive.append(buffer, { name: `Report_${type}_Unit_${fleet.unit_no}_Year_${year}.pdf` });
     }
 
     archive.finalize();
   } catch (error) {
+    console.error('ZIP Generation Error:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+const getDashboardVehiclesList = async (req, res) => {
+  const ownerId = req.ownerId;
+  try {
+    const [fleets] = await db.query(
+      `SELECT i.*, mk.name as make_name, md.name as model_name 
+       FROM inspections i
+       LEFT JOIN carmake_tbl mk ON mk.id = i.make
+       LEFT JOIN carmodal_tbl md ON md.id = i.model
+       WHERE i.user_id = ?`,
+      [ownerId]
+    );
+
+    const list = await Promise.all(fleets.map(async (fleet) => {
+      // Last 45-day inspection
+      const [lastInspRows] = await db.query(
+        `SELECT id, inspection_date FROM inspections_master 
+         WHERE inspection_id = ? 
+         ORDER BY inspection_date DESC LIMIT 1`,
+        [fleet.id]
+      );
+      const lastInspection = lastInspRows[0] || null;
+
+      // Last Lube log
+      const [lastLubeRows] = await db.query(
+        `SELECT lub_date, category, lub_status FROM inspection_lub 
+         WHERE inspection_id = ? 
+         ORDER BY lub_date DESC LIMIT 1`,
+        [fleet.id]
+      );
+      const lastLube = lastLubeRows[0] || null;
+
+      // Repairs
+      const [repairRows] = await db.query(
+        `SELECT repair_status, notes, repair_date, category FROM inspection_repair 
+         WHERE inspection_id = ? 
+         ORDER BY repair_date DESC`,
+        [fleet.id]
+      );
+
+      const hasPending = repairRows.some(r => r.repair_status === 'pending');
+      const repairStatus = hasPending ? 'Pending' : 'Completed';
+      
+      // Last repair notes for recommendation
+      const recommendation = repairRows[0]?.notes || '';
+
+      return {
+        id: fleet.id,
+        unit_no: fleet.unit_no,
+        make_name: fleet.make_name,
+        model_name: fleet.model_name,
+        year: fleet.year,
+        image: fleet.image,
+        mileage: fleet.mileage,
+        lastInspectionDate: lastInspection ? lastInspection.inspection_date : null,
+        lastInspectionId: lastInspection ? lastInspection.id : null,
+        lastLubeDate: lastLube ? lastLube.lub_date : null,
+        lastLubeCategory: lastLube ? lastLube.category : null,
+        lastLubeStatus: lastLube ? lastLube.lub_status : null,
+        lastRepairDate: repairRows[0] ? repairRows[0].repair_date : null,
+        lastRepairCategory: repairRows[0] ? repairRows[0].category : null,
+        repairStatus,
+        recommendation
+      };
+    }));
+
+    return res.json({ status: 'success', data: list });
+  } catch (error) {
+    console.error('Error fetching dashboard vehicles details:', error);
     return res.status(500).json({ status: 'error', message: error.message });
   }
 };
@@ -472,5 +983,6 @@ module.exports = {
   getMoreAlerts,
   getHistoryReport,
   generatePdfReport,
-  zipReportsAllVehicles
+  zipReportsAllVehicles,
+  getDashboardVehiclesList
 };

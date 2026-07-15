@@ -1,0 +1,229 @@
+.sign-page-wrapper {
+  min-height: 100vh;
+  background-color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.sign-background-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.15) 0%, transparent 40%),
+              radial-gradient(circle at 90% 80%, rgba(79, 70, 229, 0.1) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sign-container {
+  width: 100%;
+  max-width: 650px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  padding: 2.25rem;
+  z-index: 2;
+  color: #1e293b;
+}
+
+.sign-container.loading-container,
+.sign-container.error-container,
+.sign-container.success-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4rem 2rem;
+  gap: 1rem;
+}
+
+.sign-container.loading-container p {
+  color: #64748b;
+  font-weight: 550;
+}
+
+.sign-container.success-container h2 {
+  color: #10b981;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sign-container.success-container p {
+  color: #475569;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.text-danger {
+  color: #ef4444;
+}
+
+.text-success {
+  color: #10b981;
+}
+
+.sign-header-brand {
+  text-align: center;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 1.25rem;
+}
+
+.sign-header-brand h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sign-header-brand p {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.sign-meta-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.sign-meta-card h4 {
+  margin: 0 0 0.75rem 0;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.sign-meta-details {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.clauses-viewport {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.clauses-container h5 {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.clauses-notice {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0 0 1.25rem 0;
+}
+
+.clause-block {
+  margin-bottom: 1.25rem;
+}
+
+.clause-block h6 {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.clause-block p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #475569;
+  line-height: 1.5;
+  text-align: justify;
+}
+
+.sign-canvas-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.btn-clear {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.btn-clear:hover {
+  text-decoration: underline;
+}
+
+.canvas-wrapper {
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  height: 160px;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.signature-pad-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+  touch-action: none; /* Prevents scrolling while signing */
+}
+
+.submit-action-row {
+  margin-top: 0.5rem;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-lg {
+  padding: 0.9rem;
+  font-size: 1rem;
+}
+
+@media (max-width: 480px) {
+  .sign-container {
+    padding: 1.5rem;
+  }
+  .sign-meta-details {
+    grid-template-columns: 1fr;
+  }
+}

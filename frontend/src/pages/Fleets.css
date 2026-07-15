@@ -147,3 +147,437 @@
   padding-top: 1.25rem;
   margin-top: 0.5rem;
 }
+
+@media (max-width: 768px) {
+  .fleets-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .header-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.6rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* Fleets Header v2 Styling */
+.fleets-header-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.header-top-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+}
+
+.mobile-menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-smooth);
+}
+
+.mobile-menu-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.settings-header-btn {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  color: #1e293b;
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-smooth);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-header-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.header-main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.fleets-title-large {
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.fleets-subtitle-large {
+  font-size: 1rem;
+  color: #64748b;
+  margin-top: 0.35rem;
+  font-weight: 500;
+}
+
+.add-vehicle-btn-large {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 0.8rem 1.6rem !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2) !important;
+  transition: var(--transition-smooth) !important;
+}
+
+.add-vehicle-btn-large:hover {
+  background: #1d4ed8 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3) !important;
+}
+
+/* Fleets Search Bar Styling */
+.fleets-search-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.fleets-search-icon {
+  position: absolute;
+  left: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+}
+
+.fleets-search-input {
+  width: 100%;
+  padding: 1.1rem 1.25rem 1.1rem 3.25rem !important;
+  font-size: 1.05rem !important;
+  border-radius: 14px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.01) !important;
+  transition: var(--transition-smooth) !important;
+}
+
+.fleets-search-input:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1) !important;
+}
+
+/* Card Table Styling */
+.fleets-card-table-wrapper {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
+  margin-bottom: 2rem;
+}
+
+.fleets-table-v2 {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fleets-table-v2 th {
+  background: #f8fafc;
+  padding: 1.15rem 1.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.fleets-table-v2 td {
+  padding: 1.5rem 1.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.fleets-table-v2 tr:last-child td {
+  border-bottom: none;
+}
+
+/* Table Cells Details */
+.vehicle-info-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vehicle-unit {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.vehicle-usage {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.vehicle-specs {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.inspections-info-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inspection-due-status {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.status-pending-tag {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.inspection-actions-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ins-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.badge-45day {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.badge-45day:hover {
+  background: #ceead6;
+  transform: translateY(-1px);
+}
+
+.badge-lube {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.badge-lube:hover {
+  background: #d2e3fc;
+  transform: translateY(-1px);
+}
+
+.badge-repair {
+  background: #fef7e0;
+  color: #b06000;
+}
+
+.badge-repair:hover {
+  background: #feebd0;
+  transform: translateY(-1px);
+}
+
+/* Actions Column Round Buttons */
+.actions-cell-round {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.action-round-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.action-round-btn.btn-edit:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.action-round-btn.btn-delete {
+  border-color: #fee2e2;
+  color: #ef4444;
+}
+
+.action-round-btn.btn-delete:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+/* Floating Action Button (FAB) Styling */
+.fab-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  cursor: pointer;
+  z-index: 99;
+  transition: var(--transition-smooth);
+}
+
+.fab-btn:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+}
+
+@media (min-width: 769px) {
+  .mobile-menu-btn {
+    display: none;
+  }
+
+  .header-top-row {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-top-row {
+    display: none !important;
+  }
+  .header-main-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+
+  .add-vehicle-btn-large {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .fleets-title-large {
+    font-size: 2.25rem;
+  }
+
+  .fleets-table-v2 th {
+    padding: 0.75rem 0.4rem;
+    font-size: 0.7rem;
+  }
+
+  .fleets-table-v2 td {
+    padding: 0.75rem 0.4rem;
+  }
+
+  .vehicle-unit {
+    font-size: 0.9rem;
+  }
+
+  .vehicle-usage,
+  .vehicle-specs {
+    font-size: 0.7rem;
+  }
+
+  .inspection-due-status {
+    font-size: 0.75rem;
+  }
+
+  .ins-badge {
+    padding: 0.2rem 0.35rem;
+    font-size: 0.65rem;
+    gap: 0.2rem;
+    border-radius: 6px;
+  }
+
+  .ins-badge svg {
+    width: 9px !important;
+    height: 9px !important;
+  }
+
+  .actions-cell-round {
+    gap: 0.3rem;
+  }
+
+  .action-round-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+  }
+
+  .action-round-btn svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
+
+  .fleets-search-input {
+    padding: 0.85rem 1rem 0.85rem 2.85rem !important;
+    font-size: 0.95rem !important;
+    border-radius: 10px !important;
+  }
+
+  .fleets-search-icon {
+    left: 1rem;
+    width: 16px;
+    height: 16px;
+  }
+}

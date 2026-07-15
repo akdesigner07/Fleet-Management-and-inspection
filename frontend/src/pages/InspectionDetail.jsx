@@ -27,6 +27,38 @@ const isFutureMonth = (monthKey) => {
   return false;
 };
 
+const LUBE_CATEGORIES = {
+  1: "LUBRICATION",
+  2: "OIL CHANGE",
+  3: "OIL ADDED",
+  4: "FILTER CHANGE",
+  5: "TRANSMISSION",
+  6: "DIFFERENTIAL",
+  7: "WHEEL BEARINGS",
+  8: "BATTERIES",
+  9: "BRAKE ADJUSTMENT",
+  10: "TIRE PRESSURE",
+  11: "A LEVEL SERVICE",
+  12: "B LEVEL SERVICE",
+  13: "C LEVEL SERVICE"
+};
+
+const REPAIR_CATEGORIES = {
+  1: "ENGINE",
+  2: "TRANSMISSION",
+  3: "BRAKES",
+  4: "SUSPENSION",
+  5: "ELECTRICAL",
+  6: "HVAC / A/C",
+  7: "COOLING SYSTEM",
+  8: "FUEL SYSTEM",
+  9: "TIRES / WHEELS",
+  10: "BODY / FRAME",
+  11: "DOORS / WINDOWS",
+  12: "INTERIOR",
+  13: "SAFETY EQUIPMENT"
+};
+
 const InspectionDetail = () => {
   const { fleet_id } = useParams();
   const navigate = useNavigate();
@@ -49,6 +81,123 @@ const InspectionDetail = () => {
   const [signatureData, setSignatureData] = useState('');
   const [itemStatuses, setItemStatuses] = useState({}); // { itemId: { status: 'OK'|'DEF', note: '' } }
   const [saving, setSaving] = useState(false);
+
+  // Quick logs modals states
+  const [lubeModalOpen, setLubeModalOpen] = useState(false);
+  const [repairModalOpen, setRepairModalOpen] = useState(false);
+  const [technicians, setTechnicians] = useState([]);
+  
+  const [lubeForm, setLubeForm] = useState({
+    category: '1',
+    lub_date: new Date().toISOString().split('T')[0],
+    mileage: '',
+    notes: '',
+    lub_amt: '',
+    lub_done_by: '',
+    lub_alert: false,
+    lub_status: 'completed'
+  });
+
+  const [repairForm, setRepairForm] = useState({
+    category: '1',
+    repair_date: new Date().toISOString().split('T')[0],
+    mileage: '',
+    notes: '',
+    repair_amt: '',
+    repair_done_by: '',
+    repair_alert: false,
+    repair_status: 'completed'
+  });
+
+  const fetchTechnicians = async () => {
+    try {
+      const res = await apiRequest('/api/repair/technicians');
+      const data = await res.json();
+      if (data.status === 'success') {
+        setTechnicians(data.data);
+        if (data.data.length > 0) {
+          setLubeForm(prev => ({ ...prev, lub_done_by: data.data[0].id.toString() }));
+          setRepairForm(prev => ({ ...prev, repair_done_by: data.data[0].id.toString() }));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openLubeModal = (childItem, currentNote) => {
+    setLubeForm({
+      category: '1',
+      lub_date: new Date().toISOString().split('T')[0],
+      mileage: mileage || fleet?.mileage || '',
+      notes: `Defect logged in Inspection: ${childItem.description}${currentNote ? ` - ${currentNote}` : ''}`,
+      lub_amt: '',
+      lub_done_by: technicians[0]?.id?.toString() || '',
+      lub_alert: false,
+      lub_status: 'completed'
+    });
+    setLubeModalOpen(true);
+  };
+
+  const openRepairModal = (childItem, currentNote) => {
+    setRepairForm({
+      category: '1',
+      repair_date: new Date().toISOString().split('T')[0],
+      mileage: mileage || fleet?.mileage || '',
+      notes: `Defect logged in Inspection: ${childItem.description}${currentNote ? ` - ${currentNote}` : ''}`,
+      repair_amt: '',
+      repair_done_by: technicians[0]?.id?.toString() || '',
+      repair_alert: false,
+      repair_status: 'completed'
+    });
+    setRepairModalOpen(true);
+  };
+
+  const handleLubeSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await apiRequest('/api/lube', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...lubeForm,
+          inspection_id: fleet_id,
+          lub_files: []
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert('Lubrication entry added successfully!');
+        setLubeModalOpen(false);
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleRepairSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await apiRequest('/api/repair', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...repairForm,
+          inspection_id: fleet_id,
+          repair_files: []
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert('Repair entry added successfully!');
+        setRepairModalOpen(false);
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   const fetchFleetAndMonths = async () => {
     try {
@@ -73,7 +222,7 @@ const InspectionDetail = () => {
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await fetchFleetAndMonths();
+      await Promise.all([fetchFleetAndMonths(), fetchTechnicians()]);
       setLoading(false);
     };
     init();
@@ -147,11 +296,15 @@ const InspectionDetail = () => {
     }
   };
 
-  const handleStatusChange = (itemId, status) => {
-    setItemStatuses(prev => ({
-      ...prev,
-      [itemId]: { ...prev[itemId], status }
-    }));
+  const handleStatusChange = (itemId, clickedStatus) => {
+    setItemStatuses(prev => {
+      const currentStatus = prev[itemId]?.status;
+      const newStatus = currentStatus === clickedStatus ? 'null' : clickedStatus;
+      return {
+        ...prev,
+        [itemId]: { ...prev[itemId], status: newStatus }
+      };
+    });
   };
 
   const handleNoteChange = (itemId, note) => {
@@ -173,22 +326,6 @@ const InspectionDetail = () => {
     if (insDate > todayStr) {
       alert('Inspection date cannot be in the future (advance inspection not allowed)');
       return;
-    }
-
-    // 45 days separation validation
-    const currentMonthObj = months.find(m => m.monthKey === activeMonthKey);
-    const isEditing = currentMonthObj && currentMonthObj.isCompleted;
-
-    if (!isEditing && fleet && fleet.last_inspection_date) {
-      const lastDate = new Date(fleet.last_inspection_date + 'T00:00:00');
-      const newDate = new Date(insDate + 'T00:00:00');
-      const diffTime = Math.abs(newDate - lastDate);
-      const diffDays = diffTime / (1000 * 60 * 60 * 24);
-      
-      if (diffDays < 45) {
-        alert(`Inspections must be at least 45 days apart. The last inspection was on ${lastDate.toLocaleDateString()}, which is only ${Math.round(diffDays)} days apart.`);
-        return;
-      }
     }
 
     setSaving(true);
@@ -370,18 +507,12 @@ const InspectionDetail = () => {
                       <div className="future-month-msg" style={{ border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', fontStyle: 'italic', marginTop: '0.75rem' }}>
                         Inspection not available yet
                       </div>
-                    ) : m.dueStatus === 'upcoming' ? (
-                      <button 
-                        className="btn start-ins-btn" 
-                        disabled
-                        title="Inspection cannot be done before the 45-day due date."
-                        style={{ opacity: 0.5, cursor: 'not-allowed', background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}
-                      >
-                        Perform Inspection
-                      </button>
                     ) : (
                       <button 
-                        className={`btn start-ins-btn ${m.dueStatus === 'overdue' ? 'btn-danger' : 'btn-primary'}`}
+                        className={`btn start-ins-btn ${
+                          m.dueStatus === 'overdue' ? 'btn-danger' : 
+                          m.dueStatus === 'upcoming' ? 'btn-success' : 'btn-primary'
+                        }`}
                         onClick={() => loadChecklistForm(m.monthKey, m.monthName)}
                       >
                         Perform Inspection
@@ -441,18 +572,21 @@ const InspectionDetail = () => {
 
           {/* Checklist tree */}
           <div className="checklist-tree-container">
-            {checklistTree.map(cat => (
-              <div key={cat.parent.id} className="category-section">
-                <h3 className="category-title">{cat.parent.item_no}. {cat.parent.description}</h3>
-                <div className="category-items">
-                  {cat.children.map(child => {
-                    const state = itemStatuses[child.id] || { status: 'null', note: '' };
-                    return (
-                      <div key={child.id} className="checklist-item">
-                        <div className="item-details">
-                          <span className="item-no">{cat.parent.item_no}.{child.item_no}</span>
-                          <span className="item-desc">{child.description}</span>
-                        </div>
+            {(() => {
+              let globalItemIndex = 0;
+              return checklistTree.map(cat => (
+                <div key={cat.parent.id} className="category-section">
+                  <h3 className="category-title">{cat.parent.description}</h3>
+                  <div className="category-items">
+                    {cat.children.map(child => {
+                      globalItemIndex++;
+                      const state = itemStatuses[child.id] || { status: 'null', note: '' };
+                      return (
+                        <div key={child.id} className="checklist-item">
+                          <div className="item-details">
+                            <span className="item-no">{globalItemIndex}</span>
+                            <span className="item-desc">{child.description}</span>
+                          </div>
                         
                         <div className="item-inputs">
                           <div className="status-toggle-buttons">
@@ -479,14 +613,35 @@ const InspectionDetail = () => {
                             value={state.note}
                             onChange={(e) => handleNoteChange(child.id, e.target.value)}
                           />
+                          <div className="quick-action-buttons" style={{ display: 'flex', gap: '0.35rem', marginLeft: '0.5rem' }}>
+                            {[7, 16, 38].includes(globalItemIndex) && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm quick-lub-btn"
+                                onClick={() => openLubeModal(child, state.note)}
+                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Lub
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm quick-rep-btn"
+                              onClick={() => openRepairModal(child, state.note)}
+                              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: '#f97316', color: '#fff', border: 'none', fontWeight: 'bold', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              Rep
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            ))}
-          </div>
+            ));
+          })()}
+        </div>
 
           {/* Signature and Submit */}
           <section className="form-footer-section">
@@ -513,6 +668,211 @@ const InspectionDetail = () => {
             </div>
           </section>
         </form>
+      )}
+      {/* Quick Lube Log Modal */}
+      {lubeModalOpen && (
+        <div className="modal-backdrop" style={{ zIndex: 2000 }}>
+          <div className="modal-content animate-zoom-in" style={{ maxWidth: '550px' }}>
+            <div className="modal-header">
+              <h3>Add Lubrication Entry</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setLubeModalOpen(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleLubeSubmit}>
+              <div className="modal-body">
+                <div className="form-group mb-3">
+                  <label className="form-label">Service Category</label>
+                  <select 
+                    className="form-control"
+                    value={lubeForm.category}
+                    onChange={(e) => setLubeForm({ ...lubeForm, category: e.target.value })}
+                  >
+                    {Object.entries(LUBE_CATEGORIES).map(([id, label]) => (
+                      <option key={id} value={id}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Service Date</label>
+                  <input 
+                    type="date"
+                    className="form-control"
+                    value={lubeForm.lub_date}
+                    onChange={(e) => setLubeForm({ ...lubeForm, lub_date: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Mileage</label>
+                  <input 
+                    type="text"
+                    className="form-control"
+                    value={lubeForm.mileage}
+                    onChange={(e) => setLubeForm({ ...lubeForm, mileage: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Amount ($)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 150.00"
+                    className="form-control"
+                    value={lubeForm.lub_amt}
+                    onChange={(e) => setLubeForm({ ...lubeForm, lub_amt: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Completed By (Technician)</label>
+                  <select 
+                    className="form-control"
+                    value={lubeForm.lub_done_by}
+                    onChange={(e) => setLubeForm({ ...lubeForm, lub_done_by: e.target.value })}
+                    required
+                  >
+                    {technicians.map(t => (
+                      <option key={t.id} value={t.id}>{t.firstname} {t.lastname}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Status</label>
+                  <select 
+                    className="form-control"
+                    value={lubeForm.lub_status}
+                    onChange={(e) => setLubeForm({ ...lubeForm, lub_status: e.target.value })}
+                  >
+                    <option value="completed">Completed</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Notes</label>
+                  <textarea 
+                    rows="3"
+                    className="form-control"
+                    value={lubeForm.notes}
+                    onChange={(e) => setLubeForm({ ...lubeForm, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setLubeModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Lube Log</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Repair Log Modal */}
+      {repairModalOpen && (
+        <div className="modal-backdrop" style={{ zIndex: 2000 }}>
+          <div className="modal-content animate-zoom-in" style={{ maxWidth: '550px' }}>
+            <div className="modal-header">
+              <h3>Add Repair Entry</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setRepairModalOpen(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleRepairSubmit}>
+              <div className="modal-body">
+                <div className="form-group mb-3">
+                  <label className="form-label">Repair Category</label>
+                  <select 
+                    className="form-control"
+                    value={repairForm.category}
+                    onChange={(e) => setRepairForm({ ...repairForm, category: e.target.value })}
+                  >
+                    {Object.entries(REPAIR_CATEGORIES).map(([id, label]) => (
+                      <option key={id} value={id}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Repair Date</label>
+                  <input 
+                    type="date"
+                    className="form-control"
+                    value={repairForm.repair_date}
+                    onChange={(e) => setRepairForm({ ...repairForm, repair_date: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Mileage</label>
+                  <input 
+                    type="text"
+                    className="form-control"
+                    value={repairForm.mileage}
+                    onChange={(e) => setRepairForm({ ...repairForm, mileage: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Amount ($)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 250.00"
+                    className="form-control"
+                    value={repairForm.repair_amt}
+                    onChange={(e) => setRepairForm({ ...repairForm, repair_amt: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Done By (Technician)</label>
+                  <select 
+                    className="form-control"
+                    value={repairForm.repair_done_by}
+                    onChange={(e) => setRepairForm({ ...repairForm, repair_done_by: e.target.value })}
+                    required
+                  >
+                    {technicians.map(t => (
+                      <option key={t.id} value={t.id}>{t.firstname} {t.lastname}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Status</label>
+                  <select 
+                    className="form-control"
+                    value={repairForm.repair_status}
+                    onChange={(e) => setRepairForm({ ...repairForm, repair_status: e.target.value })}
+                  >
+                    <option value="completed">Completed</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </div>
+
+                <div className="form-group mb-3">
+                  <label className="form-label">Notes</label>
+                  <textarea 
+                    rows="3"
+                    className="form-control"
+                    value={repairForm.notes}
+                    onChange={(e) => setRepairForm({ ...repairForm, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setRepairModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Repair Log</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -7,22 +7,25 @@
   background: rgba(4, 7, 13, 0.8);
   backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
+  overflow-y: auto;
 }
 
 .modal-container {
-  width: 100%;
+  width: 90%;
   max-width: 600px;
-  max-height: 90vh;
+  margin: 10vh auto;
   display: flex;
   flex-direction: column;
   border-color: rgba(255, 255, 255, 0.15) !important;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 0 40px rgba(99, 102, 241, 0.1) !important;
   overflow: hidden;
   padding: 0 !important;
+  border-radius: 12px;
+  background: var(--bg-card);
 }
 
 .modal-header {
