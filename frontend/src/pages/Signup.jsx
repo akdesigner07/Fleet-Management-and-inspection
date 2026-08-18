@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config/apiConfig';
 import { User, Lock, Mail, AlertTriangle, CheckCircle } from 'lucide-react';
 import './Auth.css';
 
@@ -29,7 +30,7 @@ const Signup = () => {
       }
 
       try {
-        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const apiBase = API_BASE_URL;
         // Query database for this code to resolve the email associated
         // We will hit a generic public verification path or use the code directly
         const res = await fetch(`${apiBase}/api/auth/signup?code=${code}`);

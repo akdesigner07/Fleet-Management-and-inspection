@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, FileText, Eraser, PenTool } from 'lucide-react';
+import { API_BASE_URL } from '../config/apiConfig';
 import './DriverSign.css';
 
 const DriverSign = () => {
@@ -26,7 +27,7 @@ const DriverSign = () => {
       setLoading(true);
       setError('');
       try {
-        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const apiBase = API_BASE_URL;
         const res = await fetch(`${apiBase}/api/agreements/verify/${code}`);
         const result = await res.json();
         
@@ -138,7 +139,7 @@ const DriverSign = () => {
       const canvas = canvasRef.current;
       const signatureBase64 = canvas.toDataURL('image/png');
 
-      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const apiBase = API_BASE_URL;
       const res = await fetch(`${apiBase}/api/agreements/sign/${code}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

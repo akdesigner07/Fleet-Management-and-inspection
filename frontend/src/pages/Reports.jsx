@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config/apiConfig';
 import { 
   FileText, 
   Archive, 
@@ -102,7 +103,7 @@ const Reports = () => {
     }
     const token = localStorage.getItem('token');
     const ownerId = localStorage.getItem('activeOwnerId');
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const apiBase = API_BASE_URL;
     const url = `${apiBase}/api/reports/export-pdf?type=${exportType}&vehicle=${exportVehicle}&year=${exportYear}&owner_id=${ownerId}`;
     
     setExporting(true);
@@ -136,7 +137,7 @@ const Reports = () => {
   const handleExportZip = async () => {
     const token = localStorage.getItem('token');
     const ownerId = localStorage.getItem('activeOwnerId');
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const apiBase = API_BASE_URL;
     const url = `${apiBase}/api/reports/export-all-zip?type=${exportType}&year=${exportYear}&owner_id=${ownerId}`;
     
     setExporting(true);

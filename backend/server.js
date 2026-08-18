@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 require('dotenv').config();
+const db = require('./config/db');
 
 // Controllers
 const authController = require('./controllers/authController');
@@ -19,6 +20,30 @@ const { authenticateToken, authorizeOwnerContext } = require('./middleware/auth'
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Initialize database tables
+const initDatabase = async () => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS driver_notification (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        driver_id INT NULL,
+        fleet_id INT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        alert_key VARCHAR(100) UNIQUE NOT NULL,
+        is_read TINYINT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log("Database table 'driver_notification' is ready.");
+  } catch (err) {
+    console.error("Error creating 'driver_notification' table:", err);
+  }
+};
+initDatabase();
 
 // Enable Robust CORS (HTTP & HTTPS support, credentials, and preflight OPTIONS handling)
 app.use((req, res, next) => {
@@ -47,19 +72,25 @@ const uploadsDir = path.join(__dirname, 'uploads');
 const signatureDir = path.join(uploadsDir, 'signatures');
 const lubeDir = path.join(uploadsDir, 'lube');
 const repairDir = path.join(uploadsDir, 'repair');
+const mecDir = path.join(uploadsDir, 'mec');
+const mvrDir = path.join(uploadsDir, 'mvr');
 
-[uploadsDir, signatureDir, lubeDir, repairDir].forEach(dir => {
+[uploadsDir, signatureDir, lubeDir, repairDir, mecDir, mvrDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 });
 
-// Configure Multer storage for lube/repair file uploads
+// Configure Multer storage for lube/repair/mec file uploads
 const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const type = req.params.type; // lube or repair
+    const type = req.params.type; // lube or repair or mec or mvr
     if (type === 'lube') {
       cb(null, lubeDir);
+    } else if (type === 'mec') {
+      cb(null, mecDir);
+    } else if (type === 'mvr') {
+      cb(null, mvrDir);
     } else {
       cb(null, repairDir);
     }
@@ -145,6 +176,321 @@ app.get('/api/reports/more-alerts', authenticateToken, authorizeOwnerContext, re
 app.post('/api/reports/history', authenticateToken, authorizeOwnerContext, reportController.getHistoryReport);
 app.get('/api/reports/export-pdf', authenticateToken, authorizeOwnerContext, reportController.generatePdfReport);
 app.get('/api/reports/export-all-zip', authenticateToken, authorizeOwnerContext, reportController.zipReportsAllVehicles);
+
+// 8.5 Global Search
+app.get('/api/search', authenticateToken, authorizeOwnerContext, async (req, res) => {
+  const ownerId = req.ownerId;
+  const q = req.query.q || '';
+
+  if (!q || q.trim().length < 1) {
+    return res.json({ status: 'success', data: { drivers: [], vehicles: [], inspections: [] } });
+  }
+
+  const searchPattern = `%${q}%`;
+
+  try {
+    // 1. Search Drivers
+    const [drivers] = await db.query(
+      `SELECT id, first_name, last_name, email, phone_number, license_number, driver_id_number 
+       FROM drivers 
+       WHERE owner_id = ? AND (
+         first_name LIKE ? OR 
+         last_name LIKE ? OR 
+         email LIKE ? OR 
+         phone_number LIKE ? OR 
+         license_number LIKE ? OR 
+         driver_id_number LIKE ?
+       ) 
+       LIMIT 10`,
+      [ownerId, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern]
+    );
+
+    // 2. Search Vehicles/Fleets
+    const [vehicles] = await db.query(
+      `SELECT i.id, i.unit_no, i.license_no, i.year, mk.name as make_name, md.name as model_name 
+       FROM inspections i
+       LEFT JOIN carmake_tbl mk ON mk.id = i.make
+       LEFT JOIN carmodal_tbl md ON md.id = i.model
+       WHERE i.user_id = ? AND (
+         i.unit_no LIKE ? OR 
+         i.license_no LIKE ? OR 
+         CAST(i.year AS CHAR) LIKE ? OR
+         mk.name LIKE ? OR 
+         md.name LIKE ?
+       ) 
+       LIMIT 10`,
+      [ownerId, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern]
+    );
+
+    // 3. Search inspections/reports (using inspections_master and inspections)
+    const [inspections] = await db.query(
+      `SELECT m.id, m.month, m.inspection_date, m.mileage, i.id as fleet_id, i.unit_no, i.license_no, i.year, mk.name as make_name, md.name as model_name
+       FROM inspections_master m
+       INNER JOIN inspections i ON i.id = m.inspection_id
+       LEFT JOIN carmake_tbl mk ON mk.id = i.make
+       LEFT JOIN carmodal_tbl md ON md.id = i.model
+       WHERE i.user_id = ? AND (
+         m.month LIKE ? OR 
+         m.inspection_date LIKE ? OR 
+         i.unit_no LIKE ? OR 
+         i.license_no LIKE ? OR
+         CAST(i.year AS CHAR) LIKE ? OR
+         mk.name LIKE ? OR 
+         md.name LIKE ?
+       )
+       LIMIT 10`,
+      [ownerId, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern]
+    );
+
+    return res.json({
+      status: 'success',
+      data: {
+        drivers,
+        vehicles,
+        inspections
+      }
+    });
+  } catch (error) {
+    console.error('Global search error:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// Helper to sync dynamic notifications to DB
+const syncNotifications = async (ownerId) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // A. Query drivers compliance data
+    const [drivers] = await db.query(
+      `SELECT 
+        d.id, d.first_name, d.last_name,
+        dm.expiration_date AS med_expiration_date,
+        dmvr.expiration_date AS mvr_expiration_date,
+        ch.query_exp_date AS clearinghouse_query_expires
+      FROM drivers d
+      LEFT JOIN (
+        SELECT dm1.driver_id, dm1.expiration_date
+        FROM driver_medical dm1
+        INNER JOIN (
+          SELECT driver_id, MAX(id) as max_id
+          FROM driver_medical
+          GROUP BY driver_id
+        ) dm2 ON dm1.id = dm2.max_id
+      ) dm ON dm.driver_id = d.id
+      LEFT JOIN (
+        SELECT dmvr1.driver_id, dmvr1.expiration_date
+        FROM driver_mvr dmvr1
+        INNER JOIN (
+          SELECT driver_id, MAX(id) as max_id
+          FROM driver_mvr
+          GROUP BY driver_id
+        ) dmvr2 ON dmvr1.id = dmvr2.max_id
+      ) dmvr ON dmvr.driver_id = d.id
+      LEFT JOIN (
+        SELECT ch1.driver_id, ch1.query_exp_date
+        FROM volant_clearinghouse_queries ch1
+        INNER JOIN (
+          SELECT driver_id, MAX(id) as max_id
+          FROM volant_clearinghouse_queries
+          GROUP BY driver_id
+        ) ch2 ON ch1.id = ch2.max_id
+      ) ch ON ch.driver_id = d.id
+      WHERE d.owner_id = ?`,
+      [ownerId]
+    );
+
+    const checkAndInsertDriverAlert = async (driver, rawDate, alertType, nameLabel) => {
+      if (!rawDate) return;
+      const targetDate = new Date(rawDate);
+      if (isNaN(targetDate.getTime())) return;
+      
+      targetDate.setHours(0, 0, 0, 0);
+      const diffTime = targetDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      const formattedDate = targetDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+      const driverName = `${driver.first_name} ${driver.last_name}`;
+      const dateStr = targetDate.toISOString().split('T')[0];
+
+      if (diffDays <= 0) {
+        const alertKey = `${alertType}_expired_${driver.id}_${dateStr}`;
+        await db.query(
+          `INSERT IGNORE INTO driver_notification (user_id, driver_id, title, message, type, alert_key)
+           VALUES (?, ?, ?, ?, 'driver', ?)`,
+          [
+            ownerId,
+            driver.id,
+            `${nameLabel} Expired`,
+            `Driver ${driverName}'s ${nameLabel} expired on ${formattedDate}.`,
+            alertKey
+          ]
+        );
+      } else if (diffDays <= 10) {
+        const alertKey = `${alertType}_soon_${driver.id}_${dateStr}`;
+        await db.query(
+          `INSERT IGNORE INTO driver_notification (user_id, driver_id, title, message, type, alert_key)
+           VALUES (?, ?, ?, ?, 'driver', ?)`,
+          [
+            ownerId,
+            driver.id,
+            `${nameLabel} Expiring Soon`,
+            `Driver ${driverName}'s ${nameLabel} will expire in ${diffDays} days (on ${formattedDate}).`,
+            alertKey
+          ]
+        );
+      }
+    };
+
+    for (const d of drivers) {
+      if (d.med_expiration_date) {
+        await checkAndInsertDriverAlert(d, d.med_expiration_date, 'med', 'Medical Certificate');
+      }
+      if (d.mvr_expiration_date) {
+        await checkAndInsertDriverAlert(d, d.mvr_expiration_date, 'mvr', 'MVR Check');
+      }
+      if (d.clearinghouse_query_expires) {
+        await checkAndInsertDriverAlert(d, d.clearinghouse_query_expires, 'ch', 'Clearinghouse Query');
+      }
+    }
+
+    // B. Query vehicles / inspections compliance data
+    const [vehicles] = await db.query(
+      `SELECT i.id, i.unit_no, im.last_date 
+       FROM inspections i
+       LEFT JOIN (
+         SELECT inspection_id, MAX(inspection_date) as last_date
+         FROM inspections_master
+         GROUP BY inspection_id
+       ) im ON im.inspection_id = i.id
+       WHERE i.user_id = ?`,
+      [ownerId]
+    );
+
+    for (const v of vehicles) {
+      if (!v.last_date) {
+        const alertKey = `insp_pending_${v.id}`;
+        await db.query(
+          `INSERT IGNORE INTO driver_notification (user_id, fleet_id, title, message, type, alert_key)
+           VALUES (?, ?, ?, ?, 'inspection', ?)`,
+          [
+            ownerId,
+            v.id,
+            'Vehicle Inspection Required',
+            `Unit ${v.unit_no} has no recorded 45-day inspection.`,
+            alertKey
+          ]
+        );
+      } else {
+        const last = new Date(v.last_date);
+        const nextDue = new Date(last.getTime() + 45 * 24 * 60 * 60 * 1000);
+        nextDue.setHours(0, 0, 0, 0);
+
+        const diffTime = nextDue.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const formattedDueDate = nextDue.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+        const dateStr = last.toISOString().split('T')[0];
+
+        if (diffDays <= 0) {
+          const alertKey = `insp_overdue_${v.id}_${dateStr}`;
+          await db.query(
+            `INSERT IGNORE INTO driver_notification (user_id, fleet_id, title, message, type, alert_key)
+             VALUES (?, ?, ?, ?, 'inspection', ?)`,
+            [
+              ownerId,
+              v.id,
+              'Vehicle Inspection Overdue',
+              `Unit ${v.unit_no}'s 45-day inspection is overdue (due since ${formattedDueDate}).`,
+              alertKey
+            ]
+          );
+        } else if (diffDays <= 10) {
+          const alertKey = `insp_soon_${v.id}_${dateStr}`;
+          await db.query(
+            `INSERT IGNORE INTO driver_notification (user_id, fleet_id, title, message, type, alert_key)
+             VALUES (?, ?, ?, ?, 'inspection', ?)`,
+            [
+              ownerId,
+              v.id,
+              'Vehicle Inspection Due Soon',
+              `Unit ${v.unit_no}'s 45-day inspection is due in ${diffDays} days (on ${formattedDueDate}).`,
+              alertKey
+            ]
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error("syncNotifications error:", err);
+  }
+};
+
+// GET all notifications (syncs first)
+app.get('/api/notifications', authenticateToken, authorizeOwnerContext, async (req, res) => {
+  const ownerId = req.ownerId;
+  try {
+    await syncNotifications(ownerId);
+
+    const [notifications] = await db.query(
+      `SELECT * FROM driver_notification 
+       WHERE user_id = ? 
+       ORDER BY created_at DESC 
+       LIMIT 50`,
+      [ownerId]
+    );
+
+    const [[countRow]] = await db.query(
+      `SELECT COUNT(*) as unread_count 
+       FROM driver_notification 
+       WHERE user_id = ? AND is_read = 0`,
+      [ownerId]
+    );
+
+    return res.json({
+      status: 'success',
+      data: {
+        notifications,
+        unreadCount: countRow?.unread_count || 0
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// Mark all as read
+app.put('/api/notifications/read-all', authenticateToken, authorizeOwnerContext, async (req, res) => {
+  const ownerId = req.ownerId;
+  try {
+    await db.query(
+      `UPDATE driver_notification 
+       SET is_read = 1 
+       WHERE user_id = ?`,
+      [ownerId]
+    );
+    return res.json({ status: 'success', message: 'All notifications marked as read' });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// Mark single as read
+app.put('/api/notifications/:id/read', authenticateToken, authorizeOwnerContext, async (req, res) => {
+  const ownerId = req.ownerId;
+  const { id } = req.params;
+  try {
+    await db.query(
+      `UPDATE driver_notification 
+       SET is_read = 1 
+       WHERE id = ? AND user_id = ?`,
+      [id, ownerId]
+    );
+    return res.json({ status: 'success', message: 'Notification marked as read' });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+});
 
 // 9. Driver compliance & agreements
 app.use('/api', require('./routes/driverRoutes'));

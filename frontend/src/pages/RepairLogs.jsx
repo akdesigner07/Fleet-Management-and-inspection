@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL, ASSET_BASE_URL } from '../config/apiConfig';
 import { Plus, Settings, Edit2, Trash2, Calendar, Clock, Wrench, Image } from 'lucide-react';
 import './Logs.css';
 
@@ -18,6 +19,53 @@ const REPAIR_CATEGORIES = {
   11: "DOORS / WINDOWS",
   12: "INTERIOR",
   13: "SAFETY EQUIPMENT"
+};
+
+const formatDateSafe = (dateVal) => {
+  if (!dateVal) return '-';
+  // Try direct parsing first
+  const d = new Date(dateVal);
+  if (!isNaN(d.getTime())) {
+    if (typeof dateVal === 'string' && dateVal.length === 10) {
+      const parts = dateVal.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const localDate = new Date(year, month, day);
+        if (!isNaN(localDate.getTime())) {
+          return localDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+        }
+      }
+    }
+    return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+  }
+  
+  const strVal = String(dateVal);
+  if (strVal.includes(' ')) {
+    const firstPart = strVal.split(' ')[0];
+    if (firstPart.includes('-')) {
+      const parts = firstPart.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const localDate = new Date(year, month, day);
+        if (!isNaN(localDate.getTime())) {
+          return localDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+        }
+      }
+    }
+  }
+  // Try parsing by splitting the string to date part if T is present
+  if (strVal.includes('T')) {
+    const firstPart = strVal.split('T')[0];
+    const dPart = new Date(firstPart + 'T00:00:00');
+    if (!isNaN(dPart.getTime())) {
+      return dPart.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+    }
+  }
+  return 'Invalid Date';
 };
 
 const RepairLogs = () => {
@@ -395,22 +443,64 @@ const RepairLogs = () => {
             {/* File Upload section */}
             <div className="form-group grid-span-2">
               <label className="form-label">Attachment Files (Receipts, Reports)</label>
-              <input 
-                type="file" 
-                multiple 
-                className="form-control" 
-                onChange={handleFileUpload} 
-                disabled={uploadingFiles}
-              />
-              {uploadingFiles && <span className="text-secondary" style={{ fontSize: '0.8rem' }}>Uploading files...</span>}
               
-              <div className="uploaded-files-list" style={{ marginTop: '0.5rem' }}>
-                {uploadedFilenames.map((name, i) => (
-                  <div key={i} className="uploaded-file-item card" style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', marginBottom: '0.5rem' }}>
-                    <span className="file-name">{name}</span>
-                    <button type="button" className="btn-remove-file" onClick={() => handleRemoveFile(i)} style={{ border: 'none', background: 'transparent', color: 'var(--color-danger)', cursor: 'pointer' }}>Remove</button>
+              <div className="custom-image-upload-zone">
+                <input 
+                  type="file" 
+                  id="image-upload-input"
+                  multiple 
+                  onChange={handleFileUpload} 
+                  disabled={uploadingFiles}
+                  style={{ display: 'none' }}
+                />
+                <label htmlFor="image-upload-input" className="upload-zone-label">
+                  <div className="upload-icon-circle-wrapper">
+                    <div className="inner-image-icon-badge">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                      <div className="badge-plus-overlay">+</div>
+                    </div>
                   </div>
-                ))}
+                  <span className="upload-title">Upload Photo</span>
+                  <span className="upload-subtitle">JPG, PNG up to 10MB</span>
+                  <div className="upload-choose-btn">Choose File</div>
+                </label>
+              </div>
+
+              {uploadingFiles && <div className="uploading-spinner-text">Uploading files...</div>}
+              
+              <div className="uploaded-files-grid-v2">
+                {uploadedFilenames.map((name, i) => {
+                  const apiBase = ASSET_BASE_URL;
+                  const fileUrl = `${apiBase}/uploads/repair/${name}`;
+                  const isImg = /\.(jpg|jpeg|png|webp|gif)$/i.test(name);
+                  
+                  return (
+                    <div key={i} className="uploaded-file-thumbnail-card">
+                      {isImg ? (
+                        <img src={fileUrl} alt={name} className="uploaded-file-img-preview" />
+                      ) : (
+                        <div className="uploaded-file-generic-preview">
+                          <span className="generic-preview-icon">&#128196;</span>
+                          <span className="generic-preview-ext">
+                            {name.split('.').pop().toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <div className="thumbnail-hover-overlay">
+                        <span className="thumbnail-file-name" title={name}>{name}</span>
+                        <button 
+                          type="button" 
+                          className="btn-remove-thumbnail" 
+                          onClick={() => handleRemoveFile(i)}
+                          title="Remove file"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -487,7 +577,7 @@ const RepairLogs = () => {
               </tr>
             ) : (
               logs.map(log => {
-                const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const apiBase = ASSET_BASE_URL;
                 
                 const categoryRaw = REPAIR_CATEGORIES[log.category] || 'ENGINE';
                 const categoryTitle = categoryRaw
@@ -501,7 +591,7 @@ const RepairLogs = () => {
                     <td>
                       <div className="lube-category-date-cell">
                         <span className="lube-date-text">
-                          {new Date(log.repair_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}
+                          {formatDateSafe(log.repair_date)}
                         </span>
                         <span className="lube-category-text">{categoryTitle}</span>
                         <span className="lube-mileage-text">{log.mileage ? `${parseInt(log.mileage, 10).toLocaleString()} Mil` : '0 Mil'}</span>

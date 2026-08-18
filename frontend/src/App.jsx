@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
-import { Menu, Settings } from 'lucide-react';
+import TopHeader from './components/TopHeader';
+import { Menu, Settings, ShieldCheck } from 'lucide-react';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -48,21 +49,16 @@ const ProtectedRoute = ({ children }) => {
   
   return (
     <div className={`app-container ${sidebarOpen ? 'sidebar-open' : ''}`}>
-      <div className="mobile-top-bar">
-        <button className="sidebar-toggle-btn-v2" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle sidebar">
-          <Menu size={24} />
-        </button>
-        <button className="mobile-settings-btn" onClick={() => navigate('/fleets?action=carrier')} aria-label="Carrier settings" title="Carrier Settings">
-          <Settings size={20} />
-        </button>
-      </div>
       {sidebarOpen && (
         <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
       )}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <main className="main-content">
-        {children}
-      </main>
+      <div className="main-layout-wrapper">
+        <TopHeader onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        <main className="main-content">
+          {children}
+        </main>
+      </div>
     </div>
   );
 };

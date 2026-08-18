@@ -68,7 +68,8 @@ const inviteUser = async (req, res) => {
       [ownerId, email, inviteCode, type]
     );
 
-    const inviteLink = `http://localhost:5173/signup?code=${inviteCode}`;
+    const baseUrl = process.env.FRONTEND_URL || req.headers.origin || `${req.protocol}://${req.get('host')}`;
+    const inviteLink = `${baseUrl.replace(/\/$/, '')}/signup?code=${inviteCode}`;
 
     // Here we would send an email. We will log it and return the link for ease of testing.
     console.log(`[EMAIL SIMULATION] Sending invitation to ${email}. Link: ${inviteLink}`);
@@ -103,7 +104,8 @@ const resendInvite = async (req, res) => {
     }
 
     const invite = rows[0];
-    const inviteLink = `http://localhost:5173/signup?code=${invite.invite_code}`;
+    const baseUrl = process.env.FRONTEND_URL || req.headers.origin || `${req.protocol}://${req.get('host')}`;
+    const inviteLink = `${baseUrl.replace(/\/$/, '')}/signup?code=${invite.invite_code}`;
 
     console.log(`[EMAIL SIMULATION] Resending invitation to ${invite.email}. Link: ${inviteLink}`);
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL, ASSET_BASE_URL } from '../config/apiConfig';
 import SignaturePad from '../components/SignaturePad';
 import { 
   ArrowLeft, 
@@ -274,7 +275,7 @@ const InspectionDetail = () => {
           
           // Decode signature path
           if (master.signature) {
-            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const apiBase = ASSET_BASE_URL;
             setSignatureData(`${apiBase}/uploads/signatures/${master.signature}`);
           }
 

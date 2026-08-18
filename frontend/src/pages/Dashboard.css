@@ -25,7 +25,7 @@
   display: flex;
   align-items: center;
   gap: 1.25rem;
-  padding: 1.5rem !important;
+  padding: 0.7rem !important;
 }
 
 .stat-icon-wrapper {

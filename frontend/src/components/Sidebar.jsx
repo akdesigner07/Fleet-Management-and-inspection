@@ -3,17 +3,20 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
+  Users,
   Car,
   Droplet,
   Wrench,
+  FileText,
   Share2,
   Mail,
-  FileText,
-  LogOut,
-  Users,
+  ShieldCheck,
+  ChevronDown,
+  Headphones,
   X,
   Sun,
-  Moon
+  Moon,
+  LogOut
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -36,7 +39,6 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const handleOwnerChange = (e) => {
     switchOwner(e.target.value);
-    // Redirect to dashboard to reload stats for new owner context
     navigate('/');
   };
 
@@ -47,26 +49,34 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   if (!user) return null;
 
+  const activeOwnerObj = owners.find(o => String(o.owner_id) === String(activeOwnerId));
+  const displayCompanyName = activeOwnerObj
+    ? (activeOwnerObj.business_name || `${activeOwnerObj.firstname} ${activeOwnerObj.lastname}`)
+    : 'Global Limo Fleet';
+
   return (
     <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
-      <div className="sidebar-brand">
-        <div>
-          <h2>GLOBAL LIMO</h2>
-          <span className="sidebar-subtitle">Inspection Portal</span>
+      {/* Brand Header */}
+      <div className="sidebar-brand-header">
+        <div className="brand-logo-icon-box">
+          <ShieldCheck size={22} className="brand-shield-icon" />
+        </div>
+        <div className="brand-title-group">
+          <h2 className="brand-title-text">GLOBAL LIMO</h2>
+          <span className="brand-subtitle-text">Inspection Portal</span>
         </div>
         <button className="sidebar-close-mobile" onClick={onClose} aria-label="Close menu">
           <X size={20} />
         </button>
       </div>
 
-      {/* Owner Account Context Switcher */}
-      {(owners.length > 1 || (owners.length === 1 && [786, 787, 788, 789].includes(user.group_id))) && (
-        <div className="context-switcher">
-          <label className="form-label">Active Account Context</label>
+      {/* Active Account / Fleet Company Selector Card */}
+      <div className="company-selector-card">
+        {owners.length > 1 || (owners.length === 1 && [786, 787, 788, 789].includes(user.group_id)) ? (
           <select
             value={activeOwnerId || ''}
             onChange={handleOwnerChange}
-            className="form-control context-select"
+            className="company-select-input"
           >
             {owners.map(o => (
               <option key={o.owner_id} value={o.owner_id}>
@@ -74,19 +84,25 @@ const Sidebar = ({ isOpen, onClose }) => {
               </option>
             ))}
           </select>
-        </div>
-      )}
+        ) : (
+          <div className="company-name-display">
+            <span>{displayCompanyName}</span>
+            <ChevronDown size={16} className="company-chevron" />
+          </div>
+        )}
+      </div>
 
+      {/* Main Navigation List - Original App Links */}
       <nav className="sidebar-nav">
         <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <LayoutDashboard size={18} />
           <span>Dashboard</span>
         </NavLink>
 
-        {/* <NavLink to="/drivers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/drivers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Users size={18} />
           <span>Drivers</span>
-        </NavLink> */}
+        </NavLink>
 
         <NavLink to="/fleets" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Car size={18} />
@@ -123,10 +139,23 @@ const Sidebar = ({ isOpen, onClose }) => {
         )}
       </nav>
 
+      {/* Bottom Help Support Card */}
+      <div className="sidebar-help-card">
+        <div className="help-icon-circle">
+          <Headphones size={18} />
+        </div>
+        <div className="help-text-content">
+          <div className="help-title">Need Help?</div>
+          <div className="help-subtitle">Contact Support</div>
+          <div className="help-phone">(555) 123-4567</div>
+        </div>
+      </div>
+
+      {/* Sidebar Footer Controls */}
       <div className="sidebar-footer">
         <div className="theme-toggle-container">
           <button className="theme-toggle-btn" onClick={toggleTheme}>
-            {isLight ? <Moon size={16} /> : <Sun size={16} />}
+            {isLight ? <Moon size={15} /> : <Sun size={15} />}
             <span>{isLight ? 'Dark Mode' : 'Light Mode'}</span>
           </button>
         </div>
@@ -139,11 +168,10 @@ const Sidebar = ({ isOpen, onClose }) => {
             <span className="user-name">{user.firstname} {user.lastname}</span>
             <span className="user-role">{user.group_name || 'Owner'}</span>
           </div>
+          <button className="btn-logout-icon" onClick={handleLogout} title="Sign Out">
+            <LogOut size={16} />
+          </button>
         </div>
-        <button className="btn btn-secondary logout-btn" onClick={handleLogout}>
-          <LogOut size={16} />
-          <span>Sign Out</span>
-        </button>
       </div>
     </aside>
   );

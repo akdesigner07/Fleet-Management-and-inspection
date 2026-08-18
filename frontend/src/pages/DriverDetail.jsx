@@ -1,27 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { 
-  ArrowLeft, Edit, AlertCircle, FileText, Send, User, Check, Plus, 
-  Smartphone, Mail, Calendar, CreditCard, ShieldAlert, Award, Activity 
+import {
+  ArrowLeft, Edit, AlertCircle, FileText, Send, User, Check, Plus,
+  Smartphone, Mail, Calendar, CreditCard, ShieldAlert, Award, Activity,
+  Settings, Eye, Download, MoreVertical, Building2, FlaskConical, Heart,
+  CheckCircle2, Zap, Bus, Wrench, Gauge, GraduationCap, ChevronRight,
+  AlertTriangle, Landmark, UserCheck, Contact, Truck, BadgeCheck
 } from 'lucide-react';
+import AddRecordModal from '../components/AddRecordModal';
+import DrugRecordView from '../components/DrugRecordView';
+import { getApiBaseUrl, getAssetBaseUrl } from '../config/apiConfig';
 import './DriverDetail.css';
+
+const getPdfUrl = (path) => {
+  if (!path) return '#';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const baseUrl = getAssetBaseUrl();
+  return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+};
 
 const DriverDetail = () => {
   const { driver_id } = useParams();
   const navigate = useNavigate();
   const { apiRequest, activeOwnerId, user } = useAuth();
-  
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [finePrints, setFinePrints] = useState([]);
-  
+
   // Modals state
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showComplianceModal, setShowComplianceModal] = useState(false);
   const [showSendAgreementModal, setShowSendAgreementModal] = useState(false);
+  const [showViewAgreementModal, setShowViewAgreementModal] = useState(false);
+  const [selectedAgreementToView, setSelectedAgreementToView] = useState(null);
   const [showFinePrintLibModal, setShowFinePrintLibModal] = useState(false);
-  
+  const [showAddRecordModal, setShowAddRecordModal] = useState(false);
+  const [recordModalType, setRecordModalType] = useState('mec');
+  const [selectedRecordToEdit, setSelectedRecordToEdit] = useState(null);
+  const [selectedRecordIndex, setSelectedRecordIndex] = useState(null);
+  const [showDrugRecordPage, setShowDrugRecordPage] = useState(false);
+  const [selectedDrugRecordToEdit, setSelectedDrugRecordToEdit] = useState(null);
+  const [clearinghouseRecords, setClearinghouseRecords] = useState([]);
+  const [showAddFinePrint, setShowAddFinePrint] = useState(false);
+  const [viewingFinePrint, setViewingFinePrint] = useState(null);
+  const [signingLink, setSigningLink] = useState('');
+
   // Form states
   const [profileForm, setProfileForm] = useState({});
   const [complianceForm, setComplianceForm] = useState({});
@@ -31,7 +56,8 @@ const DriverDetail = () => {
     send_method: 'email'
   });
   const [newFinePrint, setNewFinePrint] = useState({ title: '', description: '', text: '' });
-  
+  const [activeLibTemplateId, setActiveLibTemplateId] = useState(null);
+
   // Sender drawing references
   const senderCanvasRef = React.useRef(null);
   const [isSenderDrawing, setIsSenderDrawing] = useState(false);
@@ -42,8 +68,7 @@ const DriverDetail = () => {
       setHasSenderDrawn(false);
       return;
     }
-    
-    // Set up canvas sizing when modal opens
+
     const timer = setTimeout(() => {
       const canvas = senderCanvasRef.current;
       if (canvas) {
@@ -115,6 +140,21 @@ const DriverDetail = () => {
   const [error, setError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
 
+  // Fetch all clearinghouse records from volant_clearinghouse_queries table
+  const fetchClearinghouseQueries = async () => {
+    try {
+      const res = await apiRequest(`/api/drivers/${driver_id}/clearinghouse-queries`);
+      if (res.ok) {
+        const result = await res.json();
+        if (result.status === 'success' && Array.isArray(result.data)) {
+          setClearinghouseRecords(result.data);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching clearinghouse queries:', err);
+    }
+  };
+
   const fetchDriverData = async () => {
     setLoading(true);
     try {
@@ -149,7 +189,40 @@ const DriverDetail = () => {
   useEffect(() => {
     fetchDriverData();
     fetchFinePrintTemplates();
+    fetchClearinghouseQueries();
   }, [driver_id]);
+
+  // Pre-select fine print templates when opening Send Agreement modal or when driver data loads
+  useEffect(() => {
+    if (showSendAgreementModal) {
+      if (data?.agreements && data.agreements.length > 0) {
+        const activeAgr = data.agreements[0];
+        let ids = [];
+        if (activeAgr.fine_print_ids) {
+          try {
+            ids = typeof activeAgr.fine_print_ids === 'string' ? JSON.parse(activeAgr.fine_print_ids) : activeAgr.fine_print_ids;
+          } catch (e) {
+            console.error('Error parsing fine_print_ids:', e);
+          }
+        }
+        if (Array.isArray(ids) && ids.length > 0) {
+          setAgreementForm(prev => ({
+            ...prev,
+            agreement_type: activeAgr.agreement_type || prev.agreement_type,
+            selected_fine_print_ids: ids,
+            send_method: activeAgr.send_method || prev.send_method
+          }));
+          return;
+        }
+      }
+      if (finePrints.length > 0) {
+        setAgreementForm(prev => ({
+          ...prev,
+          selected_fine_print_ids: finePrints.map(fp => fp.id)
+        }));
+      }
+    }
+  }, [showSendAgreementModal, data, finePrints]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -205,15 +278,7 @@ const DriverDetail = () => {
       return;
     }
 
-    if (!hasSenderDrawn) {
-      setError('Please draw your electronic signature as sender.');
-      return;
-    }
-
     try {
-      const canvas = senderCanvasRef.current;
-      const senderSignatureBase64 = canvas.toDataURL('image/png');
-
       const res = await apiRequest('/api/drivers-meta/agreements/send', {
         method: 'POST',
         body: JSON.stringify({
@@ -221,19 +286,20 @@ const DriverDetail = () => {
           agreement_type: agreementForm.agreement_type,
           fine_print_ids: agreementForm.selected_fine_print_ids,
           send_method: agreementForm.send_method,
-          sender_signature: senderSignatureBase64
+          sender_signature: null
         })
       });
       const result = await res.json();
       if (result.status === 'success') {
-        setActionSuccess(`Agreement sent successfully via ${agreementForm.send_method.toUpperCase()}!`);
-        setShowSendAgreementModal(false);
+        const link = result.signingUrl || '';
+        setSigningLink(link);
+        setActionSuccess(`Agreement sent successfully via ${agreementForm.send_method.toUpperCase()}! Share the link below with the driver.`);
         fetchDriverData();
       } else {
         setError(result.message);
       }
     } catch (err) {
-      setError('Connection error');
+      setError('Connection error. Please try again.');
     }
   };
 
@@ -249,7 +315,6 @@ const DriverDetail = () => {
       if (result.status === 'success') {
         setNewFinePrint({ title: '', description: '', text: '' });
         fetchFinePrintTemplates();
-        setShowFinePrintLibModal(false);
       } else {
         setError(result.message);
       }
@@ -258,898 +323,1998 @@ const DriverDetail = () => {
     }
   };
 
-  const handleFinePrintToggle = (id) => {
+  const toggleFinePrintSelection = (id) => {
     setAgreementForm(prev => {
-      const ids = prev.selected_fine_print_ids.includes(id)
-        ? prev.selected_fine_print_ids.filter(x => x !== id)
-        : [...prev.selected_fine_print_ids, id];
-      return { ...prev, selected_fine_print_ids: ids };
+      const exists = prev.selected_fine_print_ids.includes(id);
+      if (exists) {
+        return {
+          ...prev,
+          selected_fine_print_ids: prev.selected_fine_print_ids.filter(x => x !== id)
+        };
+      } else {
+        return {
+          ...prev,
+          selected_fine_print_ids: [...prev.selected_fine_print_ids, id]
+        };
+      }
     });
   };
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="loading-state">
         <div className="spinner"></div>
-        <p>Loading DOT compliance file...</p>
+        <p>Loading driver profile and DOT records...</p>
       </div>
     );
   }
 
-  const { driver, compliance, agreements } = data;
-  const activeAgreement = agreements.length > 0 ? agreements[0] : null;
+  if (!data) return null;
 
-  // Compile compliance alerts dynamically
-  const complianceAlerts = [];
-  if (compliance) {
-    const today = new Date();
-    if (compliance.clearinghouse_query_expires && new Date(compliance.clearinghouse_query_expires) < today) {
-      complianceAlerts.push({ title: 'Clearinghouse Query Expired', desc: `Expired on ${new Date(compliance.clearinghouse_query_expires).toLocaleDateString()}`, type: 'expired' });
-    }
-    if (compliance.next_random_due_date && new Date(compliance.next_random_due_date) < today) {
-      complianceAlerts.push({ title: 'Random Drug Test Due', desc: `Due by ${new Date(compliance.next_random_due_date).toLocaleDateString()}`, type: 'due' });
-    }
-    if (compliance.mvr_expires && new Date(compliance.mvr_expires) < today) {
-      complianceAlerts.push({ title: 'MVR Checkup Expired', desc: `Expired on ${new Date(compliance.mvr_expires).toLocaleDateString()}`, type: 'warning' });
-    }
+  const { driver, compliance, agreements, medical, drugRecords = [] } = data;
+  const activeAgreement = agreements && agreements.length > 0 ? agreements[0] : null;
+
+  // --- Routed Full Page Views for Add Record / Edit Profile / Compliance / Send Agreement ---
+  if (showAddRecordModal) {
+    return (
+      <AddRecordModal
+        isOpen={showAddRecordModal}
+        onClose={() => { setShowAddRecordModal(false); setSelectedRecordToEdit(null); setSelectedRecordIndex(null); }}
+        driver={driver}
+        recordType={recordModalType}
+        initialRecord={selectedRecordToEdit}
+        onSave={async (savedRecord) => {
+          if (recordModalType === 'clearinghouse') {
+            const payload = {
+              queryType: savedRecord.queryType || 'Full Query',
+              queryEntryDate: savedRecord.queryEntryDate || null,
+              queryExpDate: savedRecord.queryExpDate || null,
+              queryNotes: savedRecord.queryNotes || null,
+              additionalInfo: savedRecord.additionalInfo || null,
+              selectedIssues: savedRecord.selectedIssues || [],
+              uploadedFile: savedRecord.uploadedFile || null
+            };
+
+            try {
+              let res;
+              if (selectedRecordToEdit && selectedRecordToEdit.id) {
+                // UPDATE existing record in volant_clearinghouse_queries
+                res = await apiRequest(`/api/drivers/${driver_id}/clearinghouse-queries/${selectedRecordToEdit.id}`, {
+                  method: 'PUT',
+                  body: JSON.stringify(payload)
+                });
+              } else {
+                // INSERT new record into volant_clearinghouse_queries
+                res = await apiRequest(`/api/drivers/${driver_id}/clearinghouse-queries`, {
+                  method: 'POST',
+                  body: JSON.stringify(payload)
+                });
+              }
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                console.error('Save clearinghouse error:', errData.message || res.status);
+                setError('Failed to save record: ' + (errData.message || res.status));
+                return;
+              }
+            } catch (e) {
+              console.error('Network error saving clearinghouse record:', e);
+              setError('Network error saving record.');
+              return;
+            }
+
+            // Refresh records from DB after save
+            await fetchClearinghouseQueries();
+            setActionSuccess(`Clearinghouse query record ${selectedRecordToEdit ? 'updated' : 'added'} successfully!`);
+          } else if (recordModalType === 'mec') {
+            const payload = {
+              certNumber: savedRecord.certNumber || null,
+              examinerName: savedRecord.examinerName || null,
+              registryNumber: savedRecord.registryNumber || null,
+              location: savedRecord.location || null,
+              issueDate: savedRecord.issueDate || null,
+              expirationDate: savedRecord.expirationDate || null,
+              startDate: savedRecord.startDate || null,
+              restrictions: savedRecord.restrictions || null,
+              status: savedRecord.status || 'Active',
+              notes: savedRecord.notes || null,
+              uploadedFile: savedRecord.uploadedFile || null
+            };
+
+            try {
+              let res;
+              if (selectedRecordToEdit && selectedRecordToEdit.id) {
+                res = await apiRequest(`/api/drivers/${driver_id}/medical/${selectedRecordToEdit.id}`, {
+                  method: 'PUT',
+                  body: JSON.stringify(payload)
+                });
+              } else {
+                res = await apiRequest(`/api/drivers/${driver_id}/medical`, {
+                  method: 'POST',
+                  body: JSON.stringify(payload)
+                });
+              }
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                console.error('Save MEC error:', errData.message || res.status);
+                setError('Failed to save medical certificate: ' + (errData.message || res.status));
+                return;
+              }
+            } catch (e) {
+              console.error('Network error saving MEC:', e);
+              setError('Network error saving medical certificate.');
+              return;
+            }
+
+            await fetchDriverData();
+            setActionSuccess(`Medical Examiner Certificate ${selectedRecordToEdit ? 'updated' : 'added'} successfully!`);
+          }
+          setShowAddRecordModal(false);
+          setSelectedRecordToEdit(null);
+          setSelectedRecordIndex(null);
+        }}
+      />
+    );
   }
 
-  return (
-    <div className="driver-detail-container animate-fade-in">
-      {/* Back navigation */}
-      <button className="btn-back" onClick={() => navigate('/drivers')}>
-        <ArrowLeft size={16} />
-        <span>Back to Drivers</span>
-      </button>
-
-      {/* Action status notification */}
-      {actionSuccess && (
-        <div className="toast-success-banner">
-          <Check size={16} />
-          <span>{actionSuccess}</span>
+  // --- Routed Full Page Views for Add Record / Edit Profile / Compliance / Send Agreement ---
+  if (showComplianceModal) {
+    return (
+      <div className="driver-detail-container animate-fade-in">
+        <div className="driver-header-v2">
+          <button className="btn btn-secondary back-btn-v2" onClick={() => setShowComplianceModal(false)}>
+            <ArrowLeft size={16} />
+            <span>Back to Driver File</span>
+          </button>
+          <h2>Update Compliance Status Cards</h2>
         </div>
-      )}
 
-      {/* Header Profile Info card */}
-      <div className="driver-profile-header-card card">
-        <div className="profile-header-left">
-          <div className="avatar-large">
-            {driver.first_name[0]}{driver.last_name[0]}
-          </div>
-          <div>
-            <div className="profile-name-row">
-              <h2>{driver.first_name} {driver.last_name}</h2>
-              <span className={`badge ${driver.status === 'active' ? 'badge-success' : 'badge-danger'}`}>
-                {driver.status}
-              </span>
+        <div className="card form-page-card">
+          <form onSubmit={handleComplianceSubmit}>
+            <div className="modal-form-grid">
+
+              {/* CLEARINGHOUSE SUMMARY */}
+              <div className="form-group span-2" style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '800', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.02em', margin: 0 }}>CLEARINGHOUSE SUMMARY</h4>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Last Query Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.clearinghouse_last_query ? complianceForm.clearinghouse_last_query.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, clearinghouse_last_query: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Query Expiration Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.clearinghouse_expires ? complianceForm.clearinghouse_expires.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, clearinghouse_expires: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Annual Query Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.clearinghouse_annual_query ? complianceForm.clearinghouse_annual_query.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, clearinghouse_annual_query: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Clearinghouse Result</label>
+                <select
+                  className="form-control"
+                  value={complianceForm.clearinghouse_status || 'Violations Found'}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, clearinghouse_status: e.target.value })}
+                >
+                  <option value="Violations Found">Violations Found</option>
+                  <option value="No Violations Found">No Violations Found</option>
+                  <option value="Compliant">Compliant</option>
+                  <option value="Pending">Pending</option>
+                </select>
+              </div>
+
+              {/* DRUG & ALCOHOL SUMMARY */}
+              <div className="form-group span-2" style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', marginBottom: '0.5rem', marginTop: '1rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '800', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.02em', margin: 0 }}>DRUG & ALCOHOL SUMMARY</h4>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Pre-Employment Test</label>
+                <select
+                  className="form-control"
+                  value={complianceForm.pre_employment_test || 'Pending'}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, pre_employment_test: e.target.value })}
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Passed">Passed</option>
+                  <option value="Failed">Failed</option>
+                  <option value="N/A">N/A</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Last Drug Test Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.last_drug_test_date ? complianceForm.last_drug_test_date.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, last_drug_test_date: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Next Random Due</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.next_random_due ? complianceForm.next_random_due.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, next_random_due: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Drug & Alcohol Status</label>
+                <select
+                  className="form-control"
+                  value={complianceForm.drug_alcohol_status || 'Not Enrolled'}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, drug_alcohol_status: e.target.value })}
+                >
+                  <option value="Not Enrolled">Not Enrolled</option>
+                  <option value="Enrolled">Enrolled</option>
+                  <option value="Compliant">Compliant</option>
+                </select>
+              </div>
+
+              {/* DRIVER RECORD (MVR) */}
+              <div className="form-group span-2" style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', marginBottom: '0.5rem', marginTop: '1rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '800', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.02em', margin: 0 }}>DRIVER RECORD (MVR)</h4>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Last Checked Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.mvr_last_checked ? complianceForm.mvr_last_checked.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, mvr_last_checked: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">MVR Expiration Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.mvr_expires ? complianceForm.mvr_expires.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, mvr_expires: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">MVR Infractions Count</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={complianceForm.mvr_violations !== undefined ? complianceForm.mvr_violations : 0}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, mvr_violations: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">MVR Accidents Count</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={complianceForm.mvr_accidents !== undefined ? complianceForm.mvr_accidents : 0}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, mvr_accidents: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+
+              {/* MEDICAL CERTIFICATE SUMMARY */}
+              <div className="form-group span-2" style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', marginBottom: '0.5rem', marginTop: '1rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '800', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.02em', margin: 0 }}>MEDICAL CERTIFICATE SUMMARY</h4>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Medical Card Type</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="MEC"
+                  value={complianceForm.med_card_type || 'MEC'}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, med_card_type: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Issue Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.med_issue_date ? complianceForm.med_issue_date.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, med_issue_date: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Expiration Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={complianceForm.med_expiration_date ? complianceForm.med_expiration_date.split('T')[0] : ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, med_expiration_date: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Medical Card Status</label>
+                <select
+                  className="form-control"
+                  value={complianceForm.med_status || 'Pending'}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, med_status: e.target.value })}
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Active">Active</option>
+                  <option value="Expired">Expired</option>
+                </select>
+              </div>
+
+              {/* DRIVER STATUS METRICS */}
+              <div className="form-group span-2" style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: '0.5rem', marginBottom: '0.5rem', marginTop: '1rem' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '800', color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.02em', margin: 0 }}>DRIVER STATUS METRICS</h4>
+              </div>
+              <div className="form-group">
+                <label className="form-label">SAP Program Enrollment</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="N/A"
+                  value={complianceForm.sap_enrollment || ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, sap_enrollment: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Return-to-Duty Test</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="N/A"
+                  value={complianceForm.rtw_test || ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, rtw_test: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Follow-Up Testing</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="N/A"
+                  value={complianceForm.follow_up_testing || ''}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, follow_up_testing: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Driving Status</label>
+                <select
+                  className="form-control"
+                  value={complianceForm.driving_status || 'Authorized'}
+                  onChange={(e) => setComplianceForm({ ...complianceForm, driving_status: e.target.value })}
+                >
+                  <option value="Authorized">Authorized</option>
+                  <option value="Suspended">Suspended</option>
+                  <option value="Pending">Pending</option>
+                </select>
+              </div>
+
             </div>
-            <div className="profile-details-grid">
-              <div><strong>Driver ID:</strong> {driver.driver_id_number}</div>
-              <div><strong>License:</strong> {driver.license_number} ({driver.license_type} / {driver.license_state})</div>
-              <div><strong>DOB:</strong> {new Date(driver.dob).toLocaleDateString()}</div>
-              <div><strong>Hire Date:</strong> {new Date(driver.hire_date).toLocaleDateString()}</div>
+
+            <div className="modal-actions" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowComplianceModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">Update Summaries</button>
             </div>
-          </div>
+          </form>
         </div>
-        <button className="btn btn-secondary" onClick={() => setShowEditProfileModal(true)}>
-          <Edit size={16} />
-          <span>Edit Profile</span>
-        </button>
       </div>
+    );
+  }
 
-      {/* Alerts panel */}
-      {complianceAlerts.length > 0 && (
-        <div className="alerts-banner-card card">
-          <div className="alerts-card-header">
-            <AlertCircle className="icon-alert" size={18} />
-            <h4>DOT Compliance Alerts & Actions ({complianceAlerts.length})</h4>
-          </div>
-          <div className="alerts-grid">
-            {complianceAlerts.map((a, i) => (
-              <div key={i} className={`alert-item ${a.type}`}>
-                <strong>{a.title}</strong>
-                <span>{a.desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+  // --- Routed Full Page View for View Agreement Details (READ-ONLY) ---
+  if (showViewAgreementModal) {
+    const agr = selectedAgreementToView || (data?.agreements && data.agreements.length > 0 ? data.agreements[0] : null);
 
-      {/* Compliance cards Grid (Clearinghouse, D&A, MVR, Medical) */}
-      <div className="compliance-summary-grid">
-        {/* Card 1: Clearinghouse */}
-        <div className="compliance-card card" onClick={() => setShowComplianceModal(true)}>
-          <div className="comp-card-header">
-            <Calendar size={18} className="comp-icon" />
-            <h5>Clearinghouse Query</h5>
-          </div>
-          <div className="comp-card-body">
-            <div className="comp-stat-row">
-              <span>Last Query:</span>
-              <strong>{compliance?.clearinghouse_query_date ? new Date(compliance.clearinghouse_query_date).toLocaleDateString() : 'Never'}</strong>
-            </div>
-            <div className="comp-stat-row">
-              <span>Expires:</span>
-              <strong>{compliance?.clearinghouse_query_expires ? new Date(compliance.clearinghouse_query_expires).toLocaleDateString() : 'Never'}</strong>
-            </div>
-            <div className="comp-stat-row">
-              <span>Annual Query:</span>
-              <strong>{compliance?.clearinghouse_last_annual_query ? new Date(compliance.clearinghouse_last_annual_query).toLocaleDateString() : 'Never'}</strong>
-            </div>
-            <div className="comp-status-badge">
-              <span className={`badge ${
-                compliance?.clearinghouse_result === 'No Violations Found' || compliance?.clearinghouse_result === 'Compliant'
-                  ? 'badge-success' 
-                  : compliance?.clearinghouse_result === 'No Queries'
-                    ? 'badge-warning'
-                    : 'badge-danger'
-              }`}>
-                {compliance?.clearinghouse_result || 'No Queries'}
-              </span>
-            </div>
-          </div>
+    let selectedFps = [];
+    if (agr && agr.fine_print_ids) {
+      try {
+        const ids = typeof agr.fine_print_ids === 'string' ? JSON.parse(agr.fine_print_ids) : agr.fine_print_ids;
+        if (Array.isArray(ids)) {
+          selectedFps = finePrints.filter(fp => ids.includes(fp.id));
+        }
+      } catch (e) {
+        console.error('Error parsing fine_print_ids:', e);
+      }
+    }
+
+    return (
+      <div className="driver-detail-container animate-fade-in">
+        <div className="driver-header-v2">
+          <button className="btn btn-secondary back-btn-v2" onClick={() => setShowViewAgreementModal(false)}>
+            <ArrowLeft size={16} />
+            <span>Back to Driver File</span>
+          </button>
+          <h2>Document &amp; Agreement Details</h2>
         </div>
 
-        {/* Card 2: Drug & Alcohol */}
-        <div className="compliance-card card" onClick={() => setShowComplianceModal(true)}>
-          <div className="comp-card-header">
-            <Activity size={18} className="comp-icon" />
-            <h5>Drug & Alcohol Check</h5>
+        {/* DRIVER INFORMATION (READ ONLY) */}
+        <div className="card form-page-card" style={{ marginBottom: '1.25rem' }}>
+          <div style={{ marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid #E2E8F0' }}>
+            <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+              DRIVER INFORMATION (READ ONLY)
+            </h4>
           </div>
-          <div className="comp-card-body">
-            <div className="comp-stat-row">
-              <span>Pre-Employment:</span>
-              <strong>{compliance?.pre_employment_test || 'Never'}</strong>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Driver Name</label>
+              <input type="text" className="form-control" value={`${driver.first_name || ''} ${driver.last_name || ''}`} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
             </div>
-            <div className="comp-stat-row">
-              <span>Last Test Date:</span>
-              <strong>{compliance?.last_drug_test_date ? new Date(compliance.last_drug_test_date).toLocaleDateString() : 'Never'}</strong>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Email</label>
+              <input type="text" className="form-control" value={driver.email || 'N/A'} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
             </div>
-            <div className="comp-stat-row">
-              <span>Next Random Due:</span>
-              <strong>{compliance?.next_random_due_date ? new Date(compliance.next_random_due_date).toLocaleDateString() : 'Never'}</strong>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">License Number</label>
+              <input type="text" className="form-control" value={driver.license_number || 'N/A'} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
             </div>
-            <div className="comp-status-badge">
-              <span className={`badge ${
-                compliance?.random_test_status === 'Compliant' || compliance?.random_test_status === 'Negative'
-                  ? 'badge-success' 
-                  : compliance?.random_test_status === 'Not Enrolled'
-                    ? 'badge-warning'
-                    : 'badge-danger'
-              }`}>
-                {compliance?.random_test_status || 'Not Enrolled'}
-              </span>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">License Type / State</label>
+              <input type="text" className="form-control" value={`${driver.license_type || 'Class B'} / ${driver.license_state || 'CA'}`} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
             </div>
           </div>
         </div>
 
-        {/* Card 3: MVR */}
-        <div className="compliance-card card" onClick={() => setShowComplianceModal(true)}>
-          <div className="comp-card-header">
-            <CreditCard size={18} className="comp-icon" />
-            <h5>Driver Record (MVR)</h5>
-          </div>
-          <div className="comp-card-body">
-            <div className="comp-stat-row">
-              <span>Last Checked:</span>
-              <strong>{compliance?.mvr_date ? new Date(compliance.mvr_date).toLocaleDateString() : 'Never'}</strong>
-            </div>
-            <div className="comp-stat-row">
-              <span>Expires:</span>
-              <strong>{compliance?.mvr_expires ? new Date(compliance.mvr_expires).toLocaleDateString() : 'Never'}</strong>
-            </div>
-            <div className="comp-stat-row">
-              <span>Violations / Accidents:</span>
-              <strong>{compliance?.mvr_infractions || 0} / {compliance?.mvr_accidents || 0}</strong>
-            </div>
-            <div className="comp-status-badge">
-              <span className={`badge ${
-                (compliance?.mvr_infractions || 0) === 0 ? 'badge-success' : 'badge-warning'
-              }`}>
-                {(compliance?.mvr_infractions || 0) === 0 ? 'Clean Record' : 'Violations Logged'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Medical Certificate */}
-        <div className="compliance-card card" onClick={() => setShowComplianceModal(true)}>
-          <div className="comp-card-header">
-            <Award size={18} className="comp-icon" />
-            <h5>Medical Certificate</h5>
-          </div>
-          <div className="comp-card-body">
-            <div className="comp-stat-row">
-              <span>Card Type:</span>
-              <strong>{compliance?.medical_card_type || 'MEC'}</strong>
-            </div>
-            <div className="comp-stat-row">
-              <span>Issue Date:</span>
-              <strong>{compliance?.med_issue_date ? new Date(compliance.med_issue_date).toLocaleDateString() : 'Never'}</strong>
-            </div>
-            <div className="comp-stat-row">
-              <span>Expiration Date:</span>
-              <strong>{compliance?.med_expiration_date ? new Date(compliance.med_expiration_date).toLocaleDateString() : 'Never'}</strong>
-            </div>
-            <div className="comp-status-badge">
-              <span className={`badge ${
-                compliance?.med_status === 'Certified' || compliance?.med_status === 'Valid'
-                  ? 'badge-success' 
-                  : compliance?.med_status === 'Pending'
-                    ? 'badge-warning'
-                    : 'badge-danger'
-              }`}>
-                {compliance?.med_status || 'Pending'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 3 layout: History + Quick Actions */}
-      <div className="driver-dashboard-grid">
-        <div className="main-grid-left">
-          {/* Agreements checklist status */}
-          <div className="section-card card">
-            <div className="card-header-with-action">
-              <h4>Dispatched Compliance Agreements</h4>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowSendAgreementModal(true)}>
-                <Send size={14} />
-                <span>Send Agreement</span>
-              </button>
-            </div>
-            {agreements.length === 0 ? (
-              <p className="no-records-text">No agreements have been dispatched yet.</p>
-            ) : (
-              <div className="table-responsive">
-                <table className="sub-table">
-                  <thead>
-                    <tr>
-                      <th>Agreement</th>
-                      <th>Method</th>
-                      <th>Sent Date</th>
-                      <th>Signed Date</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {agreements.map(a => (
-                      <tr key={a.id}>
-                        <td><strong>{a.agreement_type}</strong></td>
-                        <td><span className="badge badge-outline">{a.send_method}</span></td>
-                        <td>{new Date(a.date_sent).toLocaleString()}</td>
-                        <td>{a.date_received ? new Date(a.date_received).toLocaleString() : '-'}</td>
-                        <td>
-                          <span className={`badge ${a.status === 'received' ? 'badge-success' : 'badge-warning'}`}>
-                            {a.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        {/* SELECTED FINE PRINT ITEMS (NAME & DESCRIPTION) */}
+        <div className="card form-page-card" style={{ marginBottom: '1.25rem' }}>
+          <div style={{ marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #E2E8F0' }}>
+            <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+              FINE PRINT CLAUSES &amp; POLICIES
+            </h4>
           </div>
 
-          {/* Signed Preview Section */}
-          {activeAgreement && (
-            <div className="section-card card">
-              <h4>Digital Signature Proof</h4>
-              <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-                {activeAgreement.sender_signature && (
-                  <div>
-                    <span className="signature-info-text" style={{ fontWeight: '600', display: 'block', marginBottom: '0.5rem' }}>
-                      Carrier Representative Signature:
-                    </span>
-                    <div className="drawn-signature-preview-box">
-                      <img src={activeAgreement.sender_signature} alt="Sender Digital Signature" className="driver-sig-image" />
-                    </div>
+          {selectedFps.length === 0 ? (
+            <div style={{ padding: '1rem', textAlign: 'center', color: '#94A3B8', fontSize: '0.85rem' }}>
+              No specific fine print items selected for this agreement.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {selectedFps.map((fp) => (
+                <div key={fp.id} style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '1rem', background: '#F8FAFC' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                    <CheckCircle2 size={16} style={{ color: '#16A34A' }} />
+                    <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#1E293B' }}>{fp.title}</h5>
                   </div>
-                )}
-                {activeAgreement.status === 'received' && activeAgreement.signature && (
-                  <div>
-                    <span className="signature-info-text" style={{ fontWeight: '600', display: 'block', marginBottom: '0.5rem' }}>
-                      Driver Signature (Signed {new Date(activeAgreement.date_received).toLocaleDateString()}):
-                    </span>
-                    <div className="drawn-signature-preview-box">
-                      <img src={activeAgreement.signature} alt="Driver Digital Signature" className="driver-sig-image" />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <p className="signature-info-text" style={{ marginTop: '1rem' }}>
-                Generated signing invitation link: <code>{`http://localhost:5173/driver-sign/${activeAgreement.invite_code}`}</code>
-              </p>
+                  {fp.description && (
+                    <p style={{ margin: '0 0 0.5rem 1.4rem', fontSize: '0.8rem', color: '#64748B', fontWeight: '500' }}>
+                      {fp.description}
+                    </p>
+                  )}
+                  <p style={{ margin: '0 0 0 1.4rem', fontSize: '0.825rem', color: '#334155', lineHeight: '1.5', whiteSpace: 'pre-wrap', background: 'white', border: '1px solid #F1F5F9', padding: '0.75rem', borderRadius: '6px' }}>
+                    {fp.text}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Right side: quick actions */}
-        <div className="main-grid-right">
-          <div className="section-card card">
-            <h4>Quick Actions</h4>
-            <div className="quick-actions-list">
-              <button className="quick-action-item" onClick={() => setShowComplianceModal(true)}>
-                <span>Update Compliance Status Cards</span>
+        {/* AGREEMENT STATUS SECTION */}
+        {agr && (
+          <div className="card form-page-card" style={{ marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #E2E8F0' }}>
+              <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>AGREEMENT STATUS</h4>
+              <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#2563EB', fontSize: '0.8rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <Activity size={14} /> View Audit Trail
               </button>
-              <button className="quick-action-item" onClick={() => setShowSendAgreementModal(true)}>
-                <span>Dispatch Driver Agreement</span>
-              </button>
-              <button className="quick-action-item" onClick={() => setShowEditProfileModal(true)}>
-                <span>Edit Profile Information</span>
-              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+              {/* Left: status details */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {[
+                  { label: 'Date Sent', value: agr.date_sent ? new Date(agr.date_sent).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—' },
+                  { label: 'Sent By', value: (agr.sender_fname || agr.sender_lname) ? `${agr.sender_fname || ''} ${agr.sender_lname || ''} (Admin)` : 'Admin', icon: <Mail size={13} style={{ color: '#64748B' }} /> },
+                  { label: 'Date Received', value: agr.date_received ? new Date(agr.date_received).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Pending Signature' },
+                  { label: 'Received By', value: agr.status === 'received' ? `${driver.first_name} ${driver.last_name}` : '—' },
+                ].map(row => (
+                  <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.825rem', color: '#64748B' }}>{row.label}</span>
+                    <strong style={{ fontSize: '0.825rem', color: '#1E293B', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      {row.value} {row.icon}
+                    </strong>
+                  </div>
+                ))}
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: '0.825rem', color: '#64748B' }}>Document</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FileText size={14} style={{ color: '#94A3B8' }} />
+                    {agr.status === 'received' && agr.pdf_file_path ? (
+                      <>
+                        <a
+                          href={getPdfUrl(agr.pdf_file_path)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: '0.8rem', fontWeight: '600', color: '#2563EB', textDecoration: 'underline' }}
+                        >
+                          {`${(agr.agreement_type || 'Driver_Agreement').replace(/\s+/g, '_')}_Signed.pdf`}
+                        </a>
+                        <a href={getPdfUrl(agr.pdf_file_path)} target="_blank" rel="noopener noreferrer" style={{ color: '#64748B' }} title="Preview / View PDF">
+                          <Eye size={14} />
+                        </a>
+                        <a href={getPdfUrl(agr.pdf_file_path)} download style={{ color: '#2563EB' }} title="Download PDF">
+                          <Download size={14} />
+                        </a>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: '0.8rem', color: '#EAB308', fontWeight: '600' }}>Pending Driver Signature</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Signed Document Preview */}
+              {agr.status === 'received' && agr.pdf_file_path ? (
+                <div style={{ border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '1rem', background: '#FAFAFA' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em' }}>SIGNED DOCUMENT PREVIEW</span>
+                    <a href={getPdfUrl(agr.pdf_file_path)} download style={{ color: '#2563EB' }} title="Download Signed PDF">
+                      <Download size={15} />
+                    </a>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ width: '80px', minHeight: '100px', background: 'white', border: '1px solid #E2E8F0', borderRadius: '6px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.5rem', gap: '0.25rem', flexShrink: 0 }}>
+                      <FileText size={24} style={{ color: '#2563EB' }} />
+                      <span style={{ fontSize: '0.6rem', textAlign: 'center', color: '#1E293B', fontWeight: '700', lineHeight: 1.3 }}>{agr.agreement_type || 'Agreement'}</span>
+                      <span style={{ fontSize: '0.6rem', fontStyle: 'italic', color: '#16A34A', borderTop: '1px solid #E2E8F0', width: '100%', textAlign: 'center', paddingTop: '0.25rem', fontWeight: '600' }}>Signed</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.03em' }}>File Name</div>
+                        <div style={{ fontSize: '0.8rem', color: '#1E293B', fontWeight: '600' }}>{`${(agr.agreement_type || 'Driver_Agreement').replace(/\s+/g, '_')}_Signed.pdf`}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Signed On</div>
+                        <div style={{ fontSize: '0.8rem', color: '#1E293B', fontWeight: '600' }}>{agr.date_received ? new Date(agr.date_received).toLocaleString('en-US') : '—'}</div>
+                      </div>
+                      <div>
+                        <a
+                          href={getPdfUrl(agr.pdf_file_path)}
+                          download
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: '#2563EB', color: 'white', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: '600', textDecoration: 'none', marginTop: '0.25rem' }}
+                        >
+                          <Download size={13} /> Download Signed PDF
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ border: '1.5px dashed #CBD5E1', borderRadius: '10px', padding: '1.5rem', background: '#FAFAFA', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '140px' }}>
+                  <FileText size={28} style={{ color: '#94A3B8', marginBottom: '0.5rem' }} />
+                  <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#475569' }}>No Signed Document Yet</span>
+                  <span style={{ fontSize: '0.75rem', color: '#94A3B8', marginTop: '0.25rem', maxWidth: '240px', lineHeight: 1.4 }}>
+                    The signed PDF will automatically be generated and available here once the driver completes the signature link.
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Footer: ONLY CLOSE BUTTON */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem' }}>
+          <button type="button" className="btn btn-secondary" onClick={() => setShowViewAgreementModal(false)}>
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Routed Full Page Views for Add Record / Edit Profile / Compliance / Send Agreement ---
+  if (showDrugRecordPage) {
+    return (
+      <DrugRecordView
+        driver={driver}
+        initialRecord={selectedDrugRecordToEdit}
+        drugRecords={drugRecords}
+        onClose={() => {
+          setShowDrugRecordPage(false);
+          setSelectedDrugRecordToEdit(null);
+        }}
+        onSave={async (savedForm, editRecord = null) => {
+          if (editRecord) {
+            setSelectedDrugRecordToEdit(editRecord);
+            return;
+          }
+
+          const isEdit = !!selectedDrugRecordToEdit;
+          const endpoint = isEdit
+            ? `/api/drivers/${driver_id}/drug-records/${selectedDrugRecordToEdit.id}`
+            : `/api/drivers/${driver_id}/drug-records`;
+          const method = isEdit ? 'PUT' : 'POST';
+
+          const res = await apiRequest(endpoint, {
+            method,
+            body: JSON.stringify(savedForm)
+          });
+          const resData = await res.json();
+          if (!res.ok) {
+            throw new Error(resData.message || 'Failed to save drug test record.');
+          }
+
+          await fetchDriverData();
+          setActionSuccess(`Drug test record successfully ${isEdit ? 'updated' : 'saved'}!`);
+          if (isEdit) {
+            setSelectedDrugRecordToEdit(null);
+          }
+        }}
+        onDelete={async (recordId) => {
+          const res = await apiRequest(`/api/drivers/${driver_id}/drug-records/${recordId}`, {
+            method: 'DELETE'
+          });
+          const resData = await res.json();
+          if (!res.ok) {
+            alert('Failed to delete record: ' + (resData.message || 'Unknown error'));
+            return;
+          }
+          await fetchDriverData();
+          setActionSuccess('Drug test record deleted successfully!');
+        }}
+      />
+    );
+  }
+
+  if (showSendAgreementModal) {
+    const activeAgreement = data?.agreements && data.agreements.length > 0 ? data.agreements[0] : null;
+
+    return (
+      <div className="driver-detail-container animate-fade-in">
+        <div className="driver-header-v2">
+          <button className="btn btn-secondary back-btn-v2" onClick={() => setShowSendAgreementModal(false)}>
+            <ArrowLeft size={16} />
+            <span>Back to Driver File</span>
+          </button>
+          <h2>Send Document &amp; Agreement</h2>
+        </div>
+
+        {error && (
+          <div className="alert-error-banner" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px', color: '#DC2626', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <AlertCircle size={16} /> {error}
+          </div>
+        )}
+
+        {actionSuccess && (
+          <div className="alert-success-banner" style={{ marginBottom: '1rem' }}>
+            <CheckCircle2 size={16} /><span>{actionSuccess}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSendAgreementSubmit}>
+
+          {/* DRIVER INFORMATION */}
+          <div className="card form-page-card" style={{ marginBottom: '1.25rem' }}>
+            <div style={{ marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid #E2E8F0' }}>
+              <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>DRIVER INFORMATION (READ ONLY)</h4>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Driver Name</label>
+                <input type="text" className="form-control" value={`${driver.first_name || ''} ${driver.last_name || ''}`} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Email</label>
+                <input type="text" className="form-control" value={driver.email || 'N/A'} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">License Number</label>
+                <input type="text" className="form-control" value={driver.license_number || 'N/A'} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">License Type / State</label>
+                <input type="text" className="form-control" value={`${driver.license_type || 'Class B'} / ${driver.license_state || 'CA'}`} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
+              </div>
             </div>
           </div>
 
-          {/* Driver compliance status indicators */}
-          <div className="section-card card">
-            <h4>Driver SAP Status</h4>
-            <div className="status-attributes">
-              <div className="status-row">
-                <span>SAP Program Enrollment:</span>
-                <strong>{compliance?.sap_program || 'N/A'}</strong>
+          {/* FINE PRINT SELECTION */}
+          <div className="card form-page-card" style={{ marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>FINE PRINT (SELECT MULTIPLE)</h4>
+                <div style={{ width: '18px', height: '18px', background: '#E2E8F0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#64748B', fontWeight: '700', cursor: 'help' }} title="Select one or more fine print policies to include in the agreement">i</div>
               </div>
-              <div className="status-row">
-                <span>Return-to-Duty Test:</span>
-                <strong>{compliance?.rtw_test || 'N/A'}</strong>
+              <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#2563EB', fontSize: '0.8rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }} onClick={() => setShowFinePrintLibModal(true)}>
+                <Settings size={14} /> Manage Fine Print Library
+              </button>
+            </div>
+
+            {/* Selected items pills display */}
+            <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.6rem 0.75rem', marginBottom: '1rem', minHeight: '40px', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', color: '#94A3B8', fontSize: '0.825rem' }}>
+              {agreementForm.selected_fine_print_ids.length === 0 ? (
+                <span>No fine print items selected. Click below to add.</span>
+              ) : (
+                finePrints.filter(fp => agreementForm.selected_fine_print_ids.includes(fp.id)).map(fp => (
+                  <span key={fp.id} style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: '999px', padding: '0.2rem 0.65rem', fontSize: '0.75rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    {fp.title}
+                    <button type="button" onClick={() => toggleFinePrintSelection(fp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93C5FD', padding: 0, lineHeight: 1 }}>×</button>
+                  </span>
+                ))
+              )}
+            </div>
+
+            {/* Fine print item list */}
+            <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ padding: '0.65rem 1rem', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#374151' }}>Select Fine Print Items</span>
               </div>
-              <div className="status-row">
-                <span>Follow-Up Testing:</span>
-                <strong>{compliance?.follow_up_testing || 'N/A'}</strong>
+              {finePrints.length === 0 ? (
+                <div style={{ padding: '1.5rem', textAlign: 'center', color: '#94A3B8', fontSize: '0.825rem' }}>No fine print templates. Add one below.</div>
+              ) : (
+                finePrints.map((fp, idx) => (
+                  <div key={fp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderBottom: idx < finePrints.length - 1 ? '1px solid #F1F5F9' : 'none', background: agreementForm.selected_fine_print_ids.includes(fp.id) ? '#F0F9FF' : 'white' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', flex: 1, margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={agreementForm.selected_fine_print_ids.includes(fp.id)}
+                        onChange={() => toggleFinePrintSelection(fp.id)}
+                        style={{ width: '16px', height: '16px', accentColor: '#2563EB', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#1E293B' }}>{fp.title}</span>
+                    </label>
+                    <button
+                      type="button"
+                      style={{ color: '#2563EB', fontSize: '0.8rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem 0.5rem' }}
+                      onClick={() => setViewingFinePrint(viewingFinePrint === fp.id ? null : fp.id)}
+                    >
+                      View
+                    </button>
+                  </div>
+                ))
+              )}
+
+              {/* Expanded fine print view */}
+              {viewingFinePrint && finePrints.find(fp => fp.id === viewingFinePrint) && (
+                <div style={{ padding: '1rem', background: '#F8FAFC', borderTop: '1px solid #E2E8F0' }}>
+                  <h5 style={{ margin: '0 0 0.5rem', fontSize: '0.875rem', fontWeight: '700', color: '#1E293B' }}>{finePrints.find(fp => fp.id === viewingFinePrint)?.title}</h5>
+                  <p style={{ fontSize: '0.8rem', color: '#475569', margin: 0, whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{finePrints.find(fp => fp.id === viewingFinePrint)?.text}</p>
+                </div>
+              )}
+
+              {/* Add New Fine Print */}
+              <div style={{ borderTop: '1px solid #E2E8F0' }}>
+                <button
+                  type="button"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', cursor: 'pointer', color: '#2563EB', fontWeight: '600', fontSize: '0.825rem' }}
+                  onClick={() => setShowAddFinePrint(prev => !prev)}
+                >
+                  <span>Add New Fine Print</span>
+                  <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>{showAddFinePrint ? '−' : '+'}</span>
+                </button>
+                {showAddFinePrint && (
+                  <div style={{ padding: '1rem', background: '#F8FAFC', borderTop: '1px solid #E2E8F0' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Title *</label>
+                        <input type="text" className="form-control" value={newFinePrint.title} onChange={(e) => setNewFinePrint({ ...newFinePrint, title: e.target.value })} placeholder="e.g. Drug & Alcohol Policy" />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Description</label>
+                        <input type="text" className="form-control" value={newFinePrint.description} onChange={(e) => setNewFinePrint({ ...newFinePrint, description: e.target.value })} placeholder="Brief summary..." />
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ margin: '0 0 0.75rem' }}>
+                      <label className="form-label">Full Policy Text *</label>
+                      <textarea className="form-control" rows={4} value={newFinePrint.text} onChange={(e) => setNewFinePrint({ ...newFinePrint, text: e.target.value })} placeholder="Enter the full policy clause text here..." style={{ resize: 'vertical' }} />
+                    </div>
+                    <button type="button" className="btn btn-primary" style={{ fontSize: '0.8rem' }} onClick={handleSaveNewFinePrint}>Save Fine Print</button>
+                  </div>
+                )}
               </div>
-              <div className="status-row">
-                <span>Driving Status:</span>
-                <span className={`badge ${compliance?.driving_status === 'Authorized' ? 'badge-success' : 'badge-danger'}`}>
-                  {compliance?.driving_status || 'Authorized'}
-                </span>
+            </div>
+          </div>
+
+          {/* SEND AGREEMENT — Method Selection */}
+          <div className="card form-page-card" style={{ marginBottom: '1.25rem' }}>
+            <div style={{ marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #E2E8F0' }}>
+              <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>SEND AGREEMENT</h4>
+              <p style={{ fontSize: '0.8rem', color: '#94A3B8', margin: '0.25rem 0 0' }}>Choose how you would like to send this agreement...</p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              {/* SMS Card */}
+              <div
+                onClick={() => setAgreementForm({ ...agreementForm, send_method: 'sms' })}
+                style={{
+                  border: agreementForm.send_method === 'sms' ? '2px solid #7C3AED' : '1.5px solid #E2E8F0',
+                  borderRadius: '12px', padding: '1.5rem', cursor: 'pointer', textAlign: 'center',
+                  background: agreementForm.send_method === 'sms' ? '#FAF5FF' : 'white',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{ width: '44px', height: '44px', background: '#F5F3FF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
+                  <Smartphone size={20} style={{ color: '#7C3AED' }} />
+                </div>
+                <h5 style={{ fontSize: '0.9rem', fontWeight: '700', color: '#1E293B', margin: '0 0 0.35rem' }}>Send via Text (SMS)</h5>
+                <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '0 0 0.75rem' }}>Sends a secure link to driver's mobile number.</p>
+                <div style={{ display: 'inline-block', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '0.35rem 0.9rem', fontSize: '0.825rem', fontWeight: '600', color: '#374151', background: 'white' }}>
+                  {driver.phone_number || 'N/A'}
+                </div>
               </div>
+
+              {/* Email Card */}
+              <div
+                onClick={() => setAgreementForm({ ...agreementForm, send_method: 'email' })}
+                style={{
+                  border: agreementForm.send_method === 'email' ? '2px solid #2563EB' : '1.5px solid #E2E8F0',
+                  borderRadius: '12px', padding: '1.5rem', cursor: 'pointer', textAlign: 'center',
+                  background: agreementForm.send_method === 'email' ? '#EFF6FF' : 'white',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{ width: '44px', height: '44px', background: '#EFF6FF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
+                  <Mail size={20} style={{ color: '#2563EB' }} />
+                </div>
+                <h5 style={{ fontSize: '0.9rem', fontWeight: '700', color: '#1E293B', margin: '0 0 0.35rem' }}>Send via Email</h5>
+                <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '0 0 0.75rem' }}>Sends a secure link to driver's email address.</p>
+                <div style={{ fontSize: '0.825rem', fontWeight: '600', color: '#2563EB', textDecoration: 'underline' }}>
+                  {driver.email || 'N/A'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SIGNING LINK — shown after successful submit */}
+          {signingLink && (
+            <div className="card form-page-card" style={{ marginBottom: '1.25rem', border: '2px solid #22C55E', background: '#F0FDF4' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <CheckCircle2 size={18} style={{ color: '#16A34A' }} />
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '800', color: '#15803D', margin: 0 }}>Agreement Sent! Share this Signing Link</h4>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#166534', marginBottom: '0.75rem' }}>The link has been sent to the driver. You can also manually share this link:</p>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={signingLink}
+                  style={{ flex: 1, padding: '0.6rem 0.75rem', fontSize: '0.825rem', border: '1px solid #86EFAC', borderRadius: '8px', background: 'white', color: '#1E293B', fontFamily: 'monospace' }}
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  type="button"
+                  style={{ padding: '0.6rem 1rem', background: '#16A34A', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.825rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(signingLink);
+                    alert('Link copied to clipboard!');
+                  }}
+                >
+                  Copy Link
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* AGREEMENT STATUS — show if agreement already sent */}
+          {activeAgreement && (
+            <div className="card form-page-card" style={{ marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #E2E8F0' }}>
+                <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>AGREEMENT STATUS</h4>
+                <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#2563EB', fontSize: '0.8rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <Activity size={14} /> View Audit Trail
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                {/* Left: status details */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {[
+                    { label: 'Date Sent', value: activeAgreement.date_sent ? new Date(activeAgreement.date_sent).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—' },
+                    { label: 'Sent By', value: (activeAgreement.sender_fname || activeAgreement.sender_lname) ? `${activeAgreement.sender_fname || ''} ${activeAgreement.sender_lname || ''} (Admin)` : 'Admin', icon: <Mail size={13} style={{ color: '#64748B' }} /> },
+                    { label: 'Date Received', value: activeAgreement.date_received ? new Date(activeAgreement.date_received).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Pending Signature' },
+                    { label: 'Received By', value: activeAgreement.status === 'received' ? `${driver.first_name} ${driver.last_name}` : '—' },
+                  ].map(row => (
+                    <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.825rem', color: '#64748B' }}>{row.label}</span>
+                      <strong style={{ fontSize: '0.825rem', color: '#1E293B', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        {row.value} {row.icon}
+                      </strong>
+                    </div>
+                  ))}
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid #F1F5F9' }}>
+                    <span style={{ fontSize: '0.825rem', color: '#64748B' }}>Document</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FileText size={14} style={{ color: '#94A3B8' }} />
+                      {activeAgreement.status === 'received' && activeAgreement.pdf_file_path ? (
+                        <>
+                          <a
+                            href={getPdfUrl(activeAgreement.pdf_file_path)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.8rem', fontWeight: '600', color: '#2563EB', textDecoration: 'underline' }}
+                          >
+                            {`${(activeAgreement.agreement_type || 'Driver_Agreement').replace(/\s+/g, '_')}_Signed.pdf`}
+                          </a>
+                          <a href={getPdfUrl(activeAgreement.pdf_file_path)} target="_blank" rel="noopener noreferrer" style={{ color: '#64748B' }} title="Preview / View PDF">
+                            <Eye size={14} />
+                          </a>
+                          <a href={getPdfUrl(activeAgreement.pdf_file_path)} download style={{ color: '#2563EB' }} title="Download PDF">
+                            <Download size={14} />
+                          </a>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '0.8rem', color: '#EAB308', fontWeight: '600' }}>Pending Driver Signature</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Signed Document Preview */}
+                {activeAgreement.status === 'received' && activeAgreement.pdf_file_path ? (
+                  <div style={{ border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '1rem', background: '#FAFAFA' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em' }}>SIGNED DOCUMENT PREVIEW</span>
+                      <a href={getPdfUrl(activeAgreement.pdf_file_path)} download style={{ color: '#2563EB' }} title="Download Signed PDF">
+                        <Download size={15} />
+                      </a>
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <div style={{ width: '80px', minHeight: '100px', background: 'white', border: '1px solid #E2E8F0', borderRadius: '6px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.5rem', gap: '0.25rem', flexShrink: 0 }}>
+                        <FileText size={24} style={{ color: '#2563EB' }} />
+                        <span style={{ fontSize: '0.6rem', textAlign: 'center', color: '#1E293B', fontWeight: '700', lineHeight: 1.3 }}>{activeAgreement.agreement_type || 'Agreement'}</span>
+                        <span style={{ fontSize: '0.6rem', fontStyle: 'italic', color: '#16A34A', borderTop: '1px solid #E2E8F0', width: '100%', textAlign: 'center', paddingTop: '0.25rem', fontWeight: '600' }}>Signed</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.03em' }}>File Name</div>
+                          <div style={{ fontSize: '0.8rem', color: '#1E293B', fontWeight: '600' }}>{`${(activeAgreement.agreement_type || 'Driver_Agreement').replace(/\s+/g, '_')}_Signed.pdf`}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Signed On</div>
+                          <div style={{ fontSize: '0.8rem', color: '#1E293B', fontWeight: '600' }}>{activeAgreement.date_received ? new Date(activeAgreement.date_received).toLocaleString('en-US') : '—'}</div>
+                        </div>
+                        <div>
+                          <a
+                            href={getPdfUrl(activeAgreement.pdf_file_path)}
+                            download
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: '#2563EB', color: 'white', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: '600', textDecoration: 'none', marginTop: '0.25rem' }}
+                          >
+                            <Download size={13} /> Download Signed PDF
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ border: '1.5px dashed #CBD5E1', borderRadius: '10px', padding: '1.5rem', background: '#FAFAFA', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '140px' }}>
+                    <FileText size={28} style={{ color: '#94A3B8', marginBottom: '0.5rem' }} />
+                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#475569' }}>No Signed Document Yet</span>
+                    <span style={{ fontSize: '0.75rem', color: '#94A3B8', marginTop: '0.25rem', maxWidth: '240px', lineHeight: 1.4 }}>
+                      The signed PDF will automatically be generated and available here once the driver completes the signature link.
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Submit Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '0.5rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowSendAgreementModal(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Send size={15} /> Send Agreement
+            </button>
+          </div>
+
+        </form>
+      </div>
+    );
+  }
+
+  if (showEditProfileModal) {
+    return (
+      <div className="driver-detail-container animate-fade-in">
+        <div className="driver-header-v2">
+          <button className="btn btn-secondary back-btn-v2" onClick={() => setShowEditProfileModal(false)}>
+            <ArrowLeft size={16} />
+            <span>Back to Driver File</span>
+          </button>
+          <h2>Edit Driver Profile</h2>
+        </div>
+        <div className="card form-page-card">
+          <form onSubmit={handleProfileSubmit}>
+            <div className="modal-form-grid">
+              <div className="form-group">
+                <label className="form-label">First Name</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={profileForm.first_name || ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Last Name</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={profileForm.last_name || ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Driver ID Number</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={profileForm.driver_id_number || ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, driver_id_number: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+                <input
+                  type="email"
+                  className="form-control"
+                  value={profileForm.email || ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Phone Number</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={profileForm.phone_number || ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, phone_number: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">License Number</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={profileForm.license_number || ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, license_number: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">License State</label>
+                <input
+                  type="text"
+                  maxLength="2"
+                  className="form-control"
+                  value={profileForm.license_state || ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, license_state: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Classification</label>
+                <select
+                  className="form-control"
+                  value={profileForm.license_type || 'Class A'}
+                  onChange={(e) => setProfileForm({ ...profileForm, license_type: e.target.value })}
+                >
+                  <option value="Class A">Class A</option>
+                  <option value="Class B">Class B</option>
+                  <option value="Class C">Class C</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Date of Birth</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={profileForm.dob ? profileForm.dob.split('T')[0] : ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, dob: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Date of Hire</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={profileForm.hire_date ? profileForm.hire_date.split('T')[0] : ''}
+                  onChange={(e) => setProfileForm({ ...profileForm, hire_date: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Employment Status</label>
+                <select
+                  className="form-control"
+                  value={profileForm.status || 'active'}
+                  onChange={(e) => setProfileForm({ ...profileForm, status: e.target.value })}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="terminated">Terminated</option>
+                </select>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowEditProfileModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">Save Profile Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="driver-detail-container animate-fade-in">
+
+      {/* Breadcrumbs Navigation */}
+      <div className="breadcrumbs-nav">
+        <Link to="/drivers" className="breadcrumb-link">Drivers</Link>
+        <span className="breadcrumb-separator">/</span>
+        <span className="breadcrumb-current">Driver Details</span>
+      </div>
+
+      {actionSuccess && (
+        <div className="alert-success-banner">
+          <CheckCircle2 size={16} />
+          <span>{actionSuccess}</span>
+        </div>
+      )}
+
+      {/* Profile Header Banner Card */}
+      <div className="driver-profile-header-card card">
+        <div className="profile-header-avatar">
+          {driver.first_name[0].toUpperCase()}{driver.last_name[0].toUpperCase()}
+        </div>
+
+        <div className="profile-header-info">
+          <div className="profile-name-row">
+            <h2 className="driver-full-title">{driver.first_name} {driver.last_name}</h2>
+            <span className={`status-pill ${driver.status === 'active' ? 'pill-active' : 'pill-inactive'}`}>
+              {driver.status === 'active' ? 'Active' : driver.status}
+            </span>
+          </div>
+
+          <div className="profile-meta-grid">
+            <div className="meta-item">
+              <span className="meta-label">Driver ID</span>
+              <span className="meta-value">{driver.driver_id_number || 'DVR-10045'}</span>
+            </div>
+            <div className="meta-item">
+              <span className="meta-label">License #</span>
+              <span className="meta-value">{driver.license_number || 'A123-4567-8901'}</span>
+            </div>
+            <div className="meta-item">
+              <span className="meta-label">State</span>
+              <span className="meta-value">{driver.license_state || 'CA'}</span>
+            </div>
+            <div className="meta-item">
+              <span className="meta-label">Date of Birth</span>
+              <span className="meta-value">
+                {driver.dob ? new Date(driver.dob).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '03/15/1985'}
+              </span>
+            </div>
+            <div className="meta-item">
+              <span className="meta-label">Hire Date</span>
+              <span className="meta-value">
+                {driver.hire_date ? new Date(driver.hire_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '05/01/2022'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="profile-header-actions">
+          <button className="btn-outline-primary" onClick={() => window.print()}>
+            <Download size={15} />
+            <span>Download Profile</span>
+          </button>
+          <button className="btn-solid-primary" onClick={() => setShowEditProfileModal(true)}>
+            <span>Edit Driver</span>
+          </button>
+          <button className="btn-icon-options" title="More Options">
+            <MoreVertical size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Alerts & Actions Banner */}
+      <div className="alerts-actions-banner">
+        <div className="alerts-banner-top">
+          <div className="alerts-title-group">
+            <AlertTriangle size={18} className="alert-header-icon" />
+            <span className="alerts-header-title">Alerts & Actions</span>
+            <span className="alerts-badge-count">3</span>
+          </div>
+          <button className="link-action-text" onClick={() => navigate('/alerts')}>View All Alerts</button>
+        </div>
+
+        <div className="alerts-grid-row">
+          <div className="alert-item-card alert-red">
+            <div className="alert-item-icon">🚫</div>
+            <div className="alert-item-text">
+              <strong className="alert-item-title">Clearinghouse Query Expired</strong>
+              <span className="alert-item-sub">Expired on 05/01/2024</span>
+            </div>
+          </div>
+
+          <div className="alert-item-card alert-orange">
+            <div className="alert-item-icon">⚠️</div>
+            <div className="alert-item-text">
+              <strong className="alert-item-title">Random Drug Test Due</strong>
+              <span className="alert-item-sub">Due by 06/15/2024</span>
+            </div>
+          </div>
+
+          <div className="alert-item-card alert-orange">
+            <div className="alert-item-icon">⚠️</div>
+            <div className="alert-item-text">
+              <strong className="alert-item-title">MVR Expiring Soon</strong>
+              <span className="alert-item-sub">Expires on 07/10/2024</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal 1: Edit Profile Modal */}
-      {showEditProfileModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content animate-zoom-in">
-            <div className="modal-header">
-              <h3>Edit Driver Profile</h3>
-              <button className="modal-close-btn" onClick={() => setShowEditProfileModal(false)}>&times;</button>
+      {/* Row 1: Summary Cards Grid (4 Columns) */}
+      <div className="dashboard-cards-grid-4">
+
+        {/* Card 1: Clearinghouse Summary */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <Landmark size={16} className="card-icon-blue" />
+              <h4>Clearinghouse Summary</h4>
             </div>
-            <form onSubmit={handleProfileSubmit}>
-              <div className="modal-body">
-                <div className="modal-form-grid">
-                  <div className="form-group">
-                    <label className="form-label">First Name</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={profileForm.first_name} 
-                      onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })} 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Last Name</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={profileForm.last_name} 
-                      onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })} 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Driver ID Number</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={profileForm.driver_id_number} 
-                      onChange={(e) => setProfileForm({ ...profileForm, driver_id_number: e.target.value })} 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Email Address</label>
-                    <input 
-                      type="email" 
-                      className="form-control" 
-                      value={profileForm.email} 
-                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Phone Number</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={profileForm.phone_number} 
-                      onChange={(e) => setProfileForm({ ...profileForm, phone_number: e.target.value })} 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">License Number</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={profileForm.license_number} 
-                      onChange={(e) => setProfileForm({ ...profileForm, license_number: e.target.value })} 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">License State</label>
-                    <input 
-                      type="text" 
-                      maxLength="2" 
-                      className="form-control" 
-                      value={profileForm.license_state} 
-                      onChange={(e) => setProfileForm({ ...profileForm, license_state: e.target.value })} 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">License Classification</label>
-                    <select 
-                      className="form-control" 
-                      value={profileForm.license_type} 
-                      onChange={(e) => setProfileForm({ ...profileForm, license_type: e.target.value })}
-                    >
-                      <option value="Class A">Class A</option>
-                      <option value="Class B">Class B</option>
-                      <option value="Class C">Class C</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Status</label>
-                    <select 
-                      className="form-control" 
-                      value={profileForm.status} 
-                      onChange={(e) => setProfileForm({ ...profileForm, status: e.target.value })}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowEditProfileModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Profile</button>
-              </div>
-            </form>
+            <span className="pill-badge pill-green">Compliant</span>
+          </div>
+
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Query Type</th>
+                  <th>Entry Date</th>
+                  <th>Expiration Date</th>
+                  <th>Result</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clearinghouseRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: 'center', color: '#64748B', padding: '1.5rem 0.5rem' }}>
+                      No clearinghouse records logged yet. Click 'Add Query Record' to add one.
+                    </td>
+                  </tr>
+                ) : (
+                  clearinghouseRecords.map((rec, index) => (
+                    <tr key={index}>
+                      <td>{rec.type}</td>
+                      <td>{rec.entryDate}</td>
+                      <td>{rec.expDate}</td>
+                      <td><span className={rec.statusClass}>{rec.result}</span></td>
+                      <td>
+                        <button className="link-action-sm" onClick={() => {
+                          setSelectedRecordToEdit(rec);
+                          setSelectedRecordIndex(index);
+                          setRecordModalType('clearinghouse');
+                          setShowAddRecordModal(true);
+                        }}>
+                          View/Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="card-bottom-bar space-between">
+
+            <button className="btn-solid-sm" onClick={() => {
+              setSelectedRecordToEdit(null);
+              setSelectedRecordIndex(null);
+              setRecordModalType('clearinghouse');
+              setShowAddRecordModal(true);
+            }}>
+              Add Query Record
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Modal 2: Compliance Update Modal */}
-      {showComplianceModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content animate-zoom-in" style={{ maxWidth: '800px' }}>
-            <div className="modal-header">
-              <h3>Update DOT Compliance Summaries</h3>
-              <button className="modal-close-btn" onClick={() => setShowComplianceModal(false)}>&times;</button>
+        {/* Card 2: Drug & Alcohol Summary */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <FlaskConical size={16} className="card-icon-purple" />
+              <h4>Drug & Alcohol Summary</h4>
             </div>
-            <form onSubmit={handleComplianceSubmit}>
-              <div className="modal-body">
-                <h5 className="modal-section-title">Clearinghouse Summary</h5>
-                <div className="modal-form-grid mb-4">
-                  <div className="form-group">
-                    <label className="form-label">Last Query Date</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.clearinghouse_query_date ? complianceForm.clearinghouse_query_date.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, clearinghouse_query_date: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Query Expiration Date</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.clearinghouse_query_expires ? complianceForm.clearinghouse_query_expires.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, clearinghouse_query_expires: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Annual Query Date</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.clearinghouse_last_annual_query ? complianceForm.clearinghouse_last_annual_query.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, clearinghouse_last_annual_query: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Clearinghouse Result</label>
-                    <select 
-                      className="form-control" 
-                      value={complianceForm.clearinghouse_result || 'No Queries'} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, clearinghouse_result: e.target.value })}
-                    >
-                      <option value="No Queries">No Queries</option>
-                      <option value="No Violations Found">No Violations Found</option>
-                      <option value="Violations Found">Violations Found</option>
-                    </select>
-                  </div>
-                </div>
+            {(() => {
+              const hasViolations = drugRecords && drugRecords.some(r => r.result === 'Positive' || r.result === 'Refusal');
+              return (
+                <span className={`pill-badge ${hasViolations ? 'pill-red' : 'pill-green'}`}>
+                  {hasViolations ? 'Non-Compliant' : 'Compliant'}
+                </span>
+              );
+            })()}
+          </div>
 
-                <h5 className="modal-section-title">Drug & Alcohol Summary</h5>
-                <div className="modal-form-grid mb-4">
-                  <div className="form-group">
-                    <label className="form-label">Pre-Employment Test</label>
-                    <select 
-                      className="form-control" 
-                      value={complianceForm.pre_employment_test || 'Pending'} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, pre_employment_test: e.target.value })}
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Negative">Negative</option>
-                      <option value="Positive">Positive</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Last Drug Test Date</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.last_drug_test_date ? complianceForm.last_drug_test_date.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, last_drug_test_date: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Next Random Due</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.next_random_due_date ? complianceForm.next_random_due_date.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, next_random_due_date: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Drug & Alcohol Status</label>
-                    <select 
-                      className="form-control" 
-                      value={complianceForm.random_test_status || 'Not Enrolled'} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, random_test_status: e.target.value })}
-                    >
-                      <option value="Not Enrolled">Not Enrolled</option>
-                      <option value="Compliant">Compliant</option>
-                      <option value="Non-Compliant">Non-Compliant</option>
-                    </select>
-                  </div>
-                </div>
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Test Type</th>
+                  <th>Last Test Date</th>
+                  <th>Result</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drugRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" style={{ textAlign: 'center', color: '#64748B', padding: '1.5rem 0.5rem' }}>
+                      No drug test records logged yet.
+                    </td>
+                  </tr>
+                ) : (
+                  drugRecords.slice(0, 4).map((rec, index) => (
+                    <tr key={index}>
+                      <td>{rec.test_type}</td>
+                      <td>
+                        {rec.test_date ? new Date(rec.test_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC' }) : '—'}
+                      </td>
+                      <td>
+                        <span className={rec.result === 'Negative' ? 'text-tag-green' : 'text-tag-red'}>
+                          {rec.result}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="link-action-sm" onClick={() => {
+                          setSelectedDrugRecordToEdit(rec);
+                          setShowDrugRecordPage(true);
+                        }}>
+                          View/Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-                <h5 className="modal-section-title">Driver Record (MVR)</h5>
-                <div className="modal-form-grid mb-4">
-                  <div className="form-group">
-                    <label className="form-label">Last Checked Date</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.mvr_date ? complianceForm.mvr_date.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, mvr_date: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">MVR Expiration Date</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.mvr_expires ? complianceForm.mvr_expires.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, mvr_expires: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">MVR Infractions Count</label>
-                    <input 
-                      type="number" 
-                      className="form-control" 
-                      value={complianceForm.mvr_infractions || 0} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, mvr_infractions: parseInt(e.target.value) || 0 })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">MVR Accidents Count</label>
-                    <input 
-                      type="number" 
-                      className="form-control" 
-                      value={complianceForm.mvr_accidents || 0} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, mvr_accidents: parseInt(e.target.value) || 0 })} 
-                    />
-                  </div>
-                </div>
-
-                <h5 className="modal-section-title">Medical Certificate Summary</h5>
-                <div className="modal-form-grid mb-4">
-                  <div className="form-group">
-                    <label className="form-label">Medical Card Type</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={complianceForm.medical_card_type || ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, medical_card_type: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Issue Date</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.med_issue_date ? complianceForm.med_issue_date.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, med_issue_date: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Expiration Date</label>
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      value={complianceForm.med_expiration_date ? complianceForm.med_expiration_date.split('T')[0] : ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, med_expiration_date: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Medical Card Status</label>
-                    <select 
-                      className="form-control" 
-                      value={complianceForm.med_status || 'Pending'} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, med_status: e.target.value })}
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Certified">Certified</option>
-                      <option value="Expired">Expired</option>
-                    </select>
-                  </div>
-                </div>
-
-                <h5 className="modal-section-title">Driver Status Metrics</h5>
-                <div className="modal-form-grid">
-                  <div className="form-group">
-                    <label className="form-label">SAP Program Enrollment</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={complianceForm.sap_program || ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, sap_program: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Return-to-Duty Test</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={complianceForm.rtw_test || ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, rtw_test: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Follow-Up Testing</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={complianceForm.follow_up_testing || ''} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, follow_up_testing: e.target.value })} 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Driving Status</label>
-                    <select 
-                      className="form-control" 
-                      value={complianceForm.driving_status || 'Authorized'} 
-                      onChange={(e) => setComplianceForm({ ...complianceForm, driving_status: e.target.value })}
-                    >
-                      <option value="Authorized">Authorized</option>
-                      <option value="Suspended">Suspended</option>
-                      <option value="Disqualified">Disqualified</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowComplianceModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Update Summaries</button>
-              </div>
-            </form>
+          <div className="card-bottom-bar space-between">
+            {/* <button className="link-action-text" onClick={() => {
+              setSelectedDrugRecordToEdit(null);
+              setShowDrugRecordPage(true);
+            }}>
+              View All Drug & Alcohol Tests
+            </button> */}
+            <button className="btn-solid-sm" onClick={() => {
+              setSelectedDrugRecordToEdit(null);
+              setShowDrugRecordPage(true);
+            }}>
+              Add New Test
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Modal 3: Send Agreement Modal */}
-      {showSendAgreementModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content animate-zoom-in" style={{ maxWidth: '850px' }}>
-            <div className="modal-header">
-              <h3>Driver Proficiency Agreement</h3>
-              <button className="modal-close-btn" onClick={() => setShowSendAgreementModal(false)}>&times;</button>
+        {/* Card 3: Driver Record (MVR) */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <UserCheck size={16} className="card-icon-blue" />
+              <h4>Driver Record (MVR)</h4>
             </div>
-            
-            {error && (
-              <div className="auth-error-alert" style={{ margin: '1rem' }}>
-                <ShieldAlert size={16} />
-                <span>{error}</span>
-              </div>
-            )}
+            <span className="pill-badge pill-green">Valid</span>
+          </div>
 
-            <form onSubmit={handleSendAgreementSubmit}>
-              <div className="modal-body">
-                <p className="section-desc">Send the Driver Proficiency Agreement to the driver for review and digital signature.</p>
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>MVR Date</th>
+                  <th>State</th>
+                  <th>Violations</th>
+                  <th>Accidents</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>04/10/2024</td>
+                  <td>CA</td>
+                  <td>1</td>
+                  <td>0</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>10/10/2023</td>
+                  <td>CA</td>
+                  <td>0</td>
+                  <td>0</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>04/10/2023</td>
+                  <td>CA</td>
+                  <td>2</td>
+                  <td>1</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-                {/* Driver information (Read Only) */}
-                <h5 className="modal-section-title">Driver Information (Read Only)</h5>
-                <div className="modal-form-grid readonly-grid mb-4">
-                  <div className="form-group">
-                    <label className="form-label">Driver Name</label>
-                    <div className="readonly-box">{driver.first_name} {driver.last_name}</div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Email Address</label>
-                    <div className="readonly-box">{driver.email}</div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">License Number</label>
-                    <div className="readonly-box">{driver.license_number}</div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">License Type / State</label>
-                    <div className="readonly-box">{driver.license_type} / {driver.license_state}</div>
-                  </div>
-                </div>
+          <div className="card-bottom-bar space-between">
+            <button className="link-action-text" onClick={() => setShowComplianceModal(true)}>View All MVR Records</button>
+            <button className="btn-solid-sm" onClick={() => setShowComplianceModal(true)}>Add New MVR</button>
+          </div>
+        </div>
 
-                {/* Fine Print Selection */}
-                <div className="flex-header mb-2">
-                  <h5 className="modal-section-title">Fine Print (Select Multiple)</h5>
-                  <button type="button" className="btn-link" onClick={() => setShowFinePrintLibModal(true)}>
-                    Manage Fine Print Library
-                  </button>
-                </div>
-                
-                <div className="fine-print-select-area card mb-4">
-                  {finePrints.length === 0 ? (
-                    <p className="no-records-text">No templates available. Create templates in the library.</p>
+        {/* Card 4: Medical Certificate */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <Heart size={16} className="card-icon-pink" />
+              <h4>Medical Certificate</h4>
+            </div>
+            <span className={`pill-badge ${medical?.status === 'Active' ? 'pill-green' :
+              medical?.status === 'Expired' || medical?.status === 'Revoked' ? 'pill-red' :
+                medical?.status === 'Suspended' ? 'pill-orange' : 'pill-warning'
+              }`}>
+              {medical?.status || 'Pending'}
+            </span>
+          </div>
+
+          <div className="card-info-list">
+            <div className="info-list-row">
+              <span className="info-label">Medical Card Type</span>
+              <strong className="info-value">{medical?.cert_number ? 'MEC' : 'MEC'}</strong>
+            </div>
+            <div className="info-list-row">
+              <span className="info-label">Issue Date</span>
+              <strong className="info-value">
+                {medical?.issue_date ? new Date(medical.issue_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC' }) : '—'}
+              </strong>
+            </div>
+            <div className="info-list-row">
+              <span className="info-label">Expiration Date</span>
+              <strong className="info-value">
+                {medical?.expiration_date ? new Date(medical.expiration_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC' }) : '—'}
+              </strong>
+            </div>
+            <div className="info-list-row">
+              <span className="info-label">Status</span>
+              <strong className="info-value">{medical?.status || 'Pending'}</strong>
+            </div>
+          </div>
+
+          <div className="card-bottom-bar">
+            <button className="btn-light-sm full-width" onClick={() => {
+              setRecordModalType('mec');
+              setSelectedRecordToEdit(medical);
+              setShowAddRecordModal(true);
+            }}>
+              {medical ? 'Edit / Upload Medical Card' : 'Upload / Add Medical Card'}
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Row 2: Middle Grid Cards (4 Columns) */}
+      <div className="dashboard-cards-grid-4">
+
+        {/* Card 1: Drug Test History */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <FlaskConical size={16} className="card-icon-purple" />
+              <h4>Drug Test History</h4>
+            </div>
+            <button className="link-action-text" onClick={() => setShowComplianceModal(true)}>View All</button>
+          </div>
+
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Test Type</th>
+                  <th>Test Date</th>
+                  <th>Result</th>
+                  <th>Result Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Random</td>
+                  <td>04/11/2024</td>
+                  <td><span className="text-tag-green">Negative</span></td>
+                  <td>04/11/2024</td>
+                  <td><span className="pill-badge-xs pill-green">Valid</span></td>
+                </tr>
+                <tr>
+                  <td>Random</td>
+                  <td>01/05/2024</td>
+                  <td><span className="text-tag-green">Negative</span></td>
+                  <td>01/06/2024</td>
+                  <td><span className="pill-badge-xs pill-green">Valid</span></td>
+                </tr>
+                <tr>
+                  <td>Pre-Employment</td>
+                  <td>05/20/2022</td>
+                  <td><span className="text-tag-green">Negative</span></td>
+                  <td>05/21/2022</td>
+                  <td><span className="pill-badge-xs pill-green">Valid</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="card-bottom-bar">
+            <button className="btn-light-sm" onClick={() => setShowComplianceModal(true)}>Add New Test Record</button>
+          </div>
+        </div>
+
+        {/* Card 2: Documents & Agreements */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <FileText size={16} className="card-icon-blue" />
+              <h4>Documents & Agreements</h4>
+            </div>
+            <button className="link-action-text" onClick={() => setShowSendAgreementModal(true)}>View All</button>
+          </div>
+
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Completed</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agreements && agreements.length > 0 ? (
+                  agreements.flatMap((agr) => {
+                    let ids = [];
+                    try {
+                      ids = typeof agr.fine_print_ids === 'string' ? JSON.parse(agr.fine_print_ids) : (agr.fine_print_ids || []);
+                    } catch (e) {
+                      ids = [];
+                    }
+
+                    const selectedFps = finePrints.filter(fp => ids.includes(fp.id));
+
+                    if (selectedFps.length > 0) {
+                      return selectedFps.map((fp) => (
+                        <tr key={`${agr.id}-${fp.id}`}>
+                          <td>
+                            <CheckCircle2 size={14} className={agr.status === 'received' ? "icon-check-green" : "icon-check-orange"} />{' '}
+                            {fp.title} {agr.status === 'received' ? '(Signed)' : '(Pending)'}
+                          </td>
+                          <td>
+                            {agr.status === 'received' ? (
+                              agr.date_received ? new Date(agr.date_received).toLocaleDateString('en-US') : 'Completed'
+                            ) : (
+                              <span style={{ color: '#EAB308', fontWeight: '600' }}>Pending</span>
+                            )}
+                          </td>
+                          <td>
+                            <button className="link-action-sm" onClick={() => { setSelectedAgreementToView(agr); setShowViewAgreementModal(true); }}>
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      ));
+                    }
+
+                    return (
+                      <tr key={agr.id}>
+                        <td>
+                          <CheckCircle2 size={14} className={agr.status === 'received' ? "icon-check-green" : "icon-check-orange"} />{' '}
+                          {agr.agreement_type || 'Driver Agreement'} {agr.status === 'received' ? '(Signed)' : '(Pending)'}
+                        </td>
+                        <td>
+                          {agr.status === 'received' ? (
+                            agr.date_received ? new Date(agr.date_received).toLocaleDateString('en-US') : 'Completed'
+                          ) : (
+                            <span style={{ color: '#EAB308', fontWeight: '600' }}>Pending</span>
+                          )}
+                        </td>
+                        <td>
+                          <button className="link-action-sm" onClick={() => { setSelectedAgreementToView(agr); setShowViewAgreementModal(true); }}>
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  finePrints && finePrints.length > 0 ? (
+                    finePrints.map((fp) => (
+                      <tr key={fp.id}>
+                        <td><CheckCircle2 size={14} className="icon-check-green" /> {fp.title}</td>
+                        <td>{fp.created_at ? new Date(fp.created_at).toLocaleDateString('en-US') : '04/15/2022'}</td>
+                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
+                      </tr>
+                    ))
                   ) : (
-                    <div className="fine-prints-checklist">
-                      {finePrints.map(fp => (
-                        <div key={fp.id} className="checklist-item">
-                          <label className="checkbox-label">
-                            <input 
-                              type="checkbox" 
-                              checked={agreementForm.selected_fine_print_ids.includes(fp.id)}
-                              onChange={() => handleFinePrintToggle(fp.id)}
-                            />
-                            <div className="checklist-details">
-                              <strong>{fp.title}</strong>
-                              <span>{fp.description || 'No description provided'}</span>
-                            </div>
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    <>
+                      <tr>
+                        <td><CheckCircle2 size={14} className="icon-check-green" /> Driver Application / Resume</td>
+                        <td>04/15/2022</td>
+                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
+                      </tr>
+                      <tr>
+                        <td><CheckCircle2 size={14} className="icon-check-green" /> Drug & Alcohol Policy (Signed)</td>
+                        <td>04/15/2022</td>
+                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
+                      </tr>
+                      <tr>
+                        <td><CheckCircle2 size={14} className="icon-check-green" /> Driver Proficiency (Signed)</td>
+                        <td>04/15/2022</td>
+                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
+                      </tr>
+                      <tr>
+                        <td><CheckCircle2 size={14} className="icon-check-green" /> Reasonable Suspicion Training</td>
+                        <td>02/10/2023</td>
+                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
+                      </tr>
+                      <tr>
+                        <td><CheckCircle2 size={14} className="icon-check-green" /> Managerial DOT Certificate</td>
+                        <td>01/20/2023</td>
+                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
+                      </tr>
+                    </>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
 
-                {/* Send Agreement Method selector */}
-                <h5 className="modal-section-title">Send Agreement Method</h5>
-                <div className="dispatch-methods-grid mb-2">
-                  <label className={`dispatch-method-card ${agreementForm.send_method === 'sms' ? 'selected' : ''}`}>
-                    <input 
-                      type="radio" 
-                      name="send_method" 
-                      value="sms" 
-                      checked={agreementForm.send_method === 'sms'}
-                      onChange={() => setAgreementForm({ ...agreementForm, send_method: 'sms' })}
-                    />
-                    <Smartphone className="dispatch-icon" size={24} />
-                    <div className="dispatch-label-group">
-                      <strong>Send via Text (SMS)</strong>
-                      <span>Sends a secure signing link via Twilio SMS to {driver.phone_number}</span>
-                    </div>
-                  </label>
-
-                  <label className={`dispatch-method-card ${agreementForm.send_method === 'email' ? 'selected' : ''}`}>
-                    <input 
-                      type="radio" 
-                      name="send_method" 
-                      value="email" 
-                      checked={agreementForm.send_method === 'email'}
-                      onChange={() => setAgreementForm({ ...agreementForm, send_method: 'email' })}
-                    />
-                    <Mail className="dispatch-icon" size={24} />
-                    <div className="dispatch-label-group">
-                      <strong>Send via Email</strong>
-                      <span>Sends the secure digital agreement link to {driver.email}</span>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Sender Signature Canvas */}
-                <h5 className="modal-section-title">Carrier Representative Signature</h5>
-                <p className="signature-info-text">Please provide your electronic signature in the box below before sending the agreement.</p>
-                <div className="canvas-header">
-                  <span>Draw Signature in the box below</span>
-                  <button type="button" className="btn-clear" onClick={clearSenderCanvas}>
-                    Clear Pad
-                  </button>
-                </div>
-                <div className="canvas-wrapper" style={{ height: '140px' }}>
-                  <canvas 
-                    ref={senderCanvasRef}
-                    onMouseDown={startSenderDrawing}
-                    onMouseMove={drawSender}
-                    onMouseUp={stopSenderDrawing}
-                    onMouseLeave={stopSenderDrawing}
-                    onTouchStart={startSenderDrawing}
-                    onTouchMove={drawSender}
-                    onTouchEnd={stopSenderDrawing}
-                    style={{ width: '100%', height: '100%', cursor: 'crosshair', display: 'block' }}
-                  ></canvas>
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowSendAgreementModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Send Agreement</button>
-              </div>
-            </form>
+          <div className="card-bottom-bar">
+            <button className="btn-light-sm" onClick={() => setShowSendAgreementModal(true)}>Send Agreement</button>
           </div>
         </div>
-      )}
 
-      {/* Modal 4: Manage Fine Prints Modal */}
-      {showFinePrintLibModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content animate-zoom-in" style={{ maxWidth: '600px' }}>
-            <div className="modal-header">
-              <h3>Create Fine Print Template</h3>
-              <button className="modal-close-btn" onClick={() => setShowFinePrintLibModal(false)}>&times;</button>
+        {/* Card 3: Driver Status */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <UserCheck size={16} className="card-icon-blue" />
+              <h4>Driver Status</h4>
             </div>
-            <form onSubmit={handleSaveNewFinePrint}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Template Title</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Cell Phone Policy" 
-                    className="form-control" 
-                    value={newFinePrint.title}
-                    onChange={(e) => setNewFinePrint({ ...newFinePrint, title: e.target.value })}
-                    required 
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Description (for internal use)</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Standard distracted driving rules" 
-                    className="form-control" 
-                    value={newFinePrint.description}
-                    onChange={(e) => setNewFinePrint({ ...newFinePrint, description: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Fine Print Text</label>
-                  <textarea 
-                    rows="6" 
-                    className="form-control" 
-                    placeholder="Enter the full policy clauses that the driver must sign..."
-                    value={newFinePrint.text}
-                    onChange={(e) => setNewFinePrint({ ...newFinePrint, text: e.target.value })}
-                    required
-                  ></textarea>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowFinePrintLibModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Template</button>
-              </div>
-            </form>
+            <span className="pill-badge pill-green">Active</span>
+          </div>
+
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Clearinghouse Status</td>
+                  <td>Compliant</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>SAP Program</td>
+                  <td>N/A</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Return-to-Duty Test</td>
+                  <td>N/A</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Follow-Up Testing</td>
+                  <td>N/A</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Driving Status</td>
+                  <td>Authorized</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+
+        {/* Card 4: Quick Actions */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <Zap size={16} className="card-icon-blue" />
+              <h4>Quick Actions</h4>
+            </div>
+          </div>
+
+          <div className="quick-actions-menu-list">
+            <button className="quick-action-row-item" onClick={() => setShowComplianceModal(true)}>
+              <Download size={14} className="action-row-icon" />
+              <span>Upload Clearinghouse Query</span>
+              <ChevronRight size={14} className="action-row-chevron" />
+            </button>
+
+            <button className="quick-action-row-item" onClick={() => setShowComplianceModal(true)}>
+              <FileText size={14} className="action-row-icon" />
+              <span>Add Drug Test Record</span>
+              <ChevronRight size={14} className="action-row-chevron" />
+            </button>
+
+            <button className="quick-action-row-item" onClick={() => setShowComplianceModal(true)}>
+              <CreditCard size={14} className="action-row-icon" />
+              <span>Add MVR Record</span>
+              <ChevronRight size={14} className="action-row-chevron" />
+            </button>
+
+            <button className="quick-action-row-item" onClick={() => setShowComplianceModal(true)}>
+              <Calendar size={14} className="action-row-icon" />
+              <span>Schedule Drug Test</span>
+              <ChevronRight size={14} className="action-row-chevron" />
+            </button>
+
+            <button className="quick-action-row-item" onClick={() => setShowComplianceModal(true)}>
+              <AlertTriangle size={14} className="action-row-icon" />
+              <span>Report an Incident</span>
+              <ChevronRight size={14} className="action-row-chevron" />
+            </button>
+
+            <button className="quick-action-row-item" onClick={() => setShowSendAgreementModal(true)}>
+              <Send size={14} className="action-row-icon" />
+              <span>Upload Document</span>
+              <ChevronRight size={14} className="action-row-chevron" />
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Row 3: Bottom Grid Cards (4 Columns) */}
+      <div className="dashboard-cards-grid-4">
+
+        {/* Card 1: Vehicle Inspections */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <Truck size={16} className="card-icon-blue" />
+              <h4>Vehicle Inspections</h4>
+            </div>
+            <button className="link-action-text" onClick={() => navigate('/inspections')}>View All</button>
+          </div>
+
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Inspection Type</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Annual DOT Inspection</td>
+                  <td><span className="text-tag-green">Completed</span></td>
+                  <td>04/15/2024</td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/inspections')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>CA 45-Day Inspection</td>
+                  <td><span className="text-tag-green">Completed</span></td>
+                  <td>05/01/2024</td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/inspections')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Next Annual Due</td>
+                  <td>-</td>
+                  <td>04/15/2025</td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/inspections')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Next 45-Day Due</td>
+                  <td>-</td>
+                  <td>06/15/2024</td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/inspections')}>View/Edit</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="card-bottom-bar">
+            <button className="btn-light-sm" onClick={() => navigate('/inspections')}>Add Inspection</button>
+          </div>
+        </div>
+
+        {/* Card 2: Maintenance & Repairs */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <Wrench size={16} className="card-icon-orange" />
+              <h4>Maintenance & Repairs</h4>
+            </div>
+            <button className="link-action-text" onClick={() => navigate('/repairs')}>View All</button>
+          </div>
+
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Date</th>
+                  <th>Count</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Last Lube / Service</td>
+                  <td>05/01/2024</td>
+                  <td>-</td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/lubes')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Next Service Due</td>
+                  <td>06/01/2024</td>
+                  <td>-</td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/lubes')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Open Repairs</td>
+                  <td>-</td>
+                  <td><span className="text-tag-orange">2</span></td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/repairs')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Completed Repairs</td>
+                  <td>-</td>
+                  <td>8</td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/repairs')}>View/Edit</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="card-bottom-bar">
+            <button className="btn-light-sm" onClick={() => navigate('/repairs')}>Add Repair Record</button>
+          </div>
+        </div>
+
+        {/* Card 3: Driver Activity */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <Gauge size={16} className="card-icon-blue" />
+              <h4>Driver Activity</h4>
+            </div>
+            <button className="link-action-text" onClick={() => navigate('/reports')}>View All</button>
+          </div>
+
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Activity</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Pre-Trip Inspections</td>
+                  <td><span className="text-tag-green">Compliant</span></td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/reports')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Post-Trip Inspections</td>
+                  <td><span className="text-tag-green">Compliant</span></td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/reports')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>HOS / Logs</td>
+                  <td><span className="text-tag-green">Compliant</span></td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/reports')}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Timecard</td>
+                  <td><span className="text-tag-green">Compliant</span></td>
+                  <td><button className="link-action-sm" onClick={() => navigate('/reports')}>View/Edit</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="card-bottom-bar">
+            <button className="btn-light-sm" onClick={() => navigate('/reports')}>View Logs</button>
+          </div>
+        </div>
+
+        {/* Card 4: Training & Certificates */}
+        <div className="summary-card card">
+          <div className="card-top-title-bar">
+            <div className="card-icon-title">
+              <GraduationCap size={16} className="card-icon-purple" />
+              <h4>Training & Certificates</h4>
+            </div>
+            <button className="link-action-text" onClick={() => setShowComplianceModal(true)}>View All</button>
+          </div>
+
+          <div className="card-table-wrapper">
+            <table className="mini-data-table">
+              <thead>
+                <tr>
+                  <th>Training / Certificate</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>DOT Training</td>
+                  <td><span className="text-tag-green">Completed</span></td>
+                  <td>01/15/2024</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Reasonable Suspicion</td>
+                  <td><span className="text-tag-green">Completed</span></td>
+                  <td>02/10/2023</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>Hazmat Endorsement</td>
+                  <td>Not Applicable</td>
+                  <td>-</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+                <tr>
+                  <td>TWIC Card</td>
+                  <td>Not Applicable</td>
+                  <td>-</td>
+                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="card-bottom-bar">
+            <button className="btn-light-sm" onClick={() => setShowComplianceModal(true)}>Add Training Record</button>
+          </div>
+        </div>
+
+      </div>
+
+      <AddRecordModal
+        isOpen={showAddRecordModal}
+        onClose={() => setShowAddRecordModal(false)}
+        driver={driver}
+        recordType={recordModalType}
+        onSave={(savedData) => {
+          setActionSuccess(`${recordModalType === 'clearinghouse' ? 'Clearinghouse query record' : 'Medical Examiner Certificate'} saved successfully!`);
+          fetchDriverData();
+        }}
+      />
+
     </div>
   );
 };

@@ -55,6 +55,30 @@ CREATE TABLE IF NOT EXISTS driver_compliance (
 );
 `;
 
+const createDriverMedicalTable = `
+CREATE TABLE IF NOT EXISTS driver_medical (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id INT NOT NULL,
+  cert_number VARCHAR(100) NULL,
+  examiner_name VARCHAR(150) NULL,
+  registry_number VARCHAR(50) NULL,
+  location VARCHAR(255) NULL,
+  issue_date DATE NULL,
+  expiration_date DATE NULL,
+  start_date DATE NULL,
+  restrictions VARCHAR(255) NULL,
+  status VARCHAR(50) NULL,
+  notes TEXT NULL,
+  uploaded_file_name VARCHAR(255) NULL,
+  uploaded_file_size VARCHAR(50) NULL,
+  uploaded_file_path TEXT NULL,
+  uploaded_timestamp VARCHAR(50) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
+);
+`;
+
 const createDriverAgreementsTable = `
 CREATE TABLE IF NOT EXISTS driver_agreements (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -72,6 +96,49 @@ CREATE TABLE IF NOT EXISTS driver_agreements (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `;
+
+const createDriverDrugRecordTable = `
+CREATE TABLE IF NOT EXISTS driver_drug_record (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id INT NOT NULL,
+  test_type VARCHAR(100) NOT NULL,
+  test_date DATE NOT NULL,
+  result_date DATE NOT NULL,
+  result VARCHAR(100) NOT NULL,
+  mro_verified VARCHAR(10) NOT NULL,
+  collection_notes TEXT NULL,
+  uploaded_file_name VARCHAR(255) NULL,
+  uploaded_file_size VARCHAR(50) NULL,
+  uploaded_file_path TEXT NULL,
+  uploaded_timestamp VARCHAR(50) NULL,
+  added_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
+);
+\`;
+
+const createDriverMvrTable = \`
+CREATE TABLE IF NOT EXISTS driver_mvr (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id INT NOT NULL,
+  mvr_type VARCHAR(100) NOT NULL,
+  mvr_date DATE NOT NULL,
+  expiration_date DATE NOT NULL,
+  state VARCHAR(50) NOT NULL,
+  violations INT DEFAULT 0,
+  accidents INT DEFAULT 0,
+  notes TEXT NULL,
+  uploaded_file_name VARCHAR(255) NULL,
+  uploaded_file_size VARCHAR(50) NULL,
+  uploaded_file_path TEXT NULL,
+  uploaded_timestamp VARCHAR(50) NULL,
+  added_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
+);
+\`;
 
 const createFinePrintLibraryTable = `
 CREATE TABLE IF NOT EXISTS fine_print_library (
@@ -94,6 +161,15 @@ async function run() {
 
   await connection.query(createDriverComplianceTable);
   console.log("Created table 'driver_compliance'");
+
+  await connection.query(createDriverMedicalTable);
+  console.log("Created table 'driver_medical'");
+
+  await connection.query(createDriverDrugRecordTable);
+  console.log("Created table 'driver_drug_record'");
+
+  await connection.query(createDriverMvrTable);
+  console.log("Created table 'driver_mvr'");
 
   await connection.query(createDriverAgreementsTable);
   console.log("Created table 'driver_agreements'");
