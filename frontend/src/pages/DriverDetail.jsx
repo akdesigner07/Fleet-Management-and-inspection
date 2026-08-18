@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import AddRecordModal from '../components/AddRecordModal';
 import DrugRecordView from '../components/DrugRecordView';
+import MvrRecordView from '../components/MvrRecordView';
 import { getApiBaseUrl, getAssetBaseUrl } from '../config/apiConfig';
 import './DriverDetail.css';
 
@@ -42,10 +43,13 @@ const DriverDetail = () => {
   const [selectedRecordIndex, setSelectedRecordIndex] = useState(null);
   const [showDrugRecordPage, setShowDrugRecordPage] = useState(false);
   const [selectedDrugRecordToEdit, setSelectedDrugRecordToEdit] = useState(null);
+  const [showMvrRecordPage, setShowMvrRecordPage] = useState(false);
+  const [selectedMvrRecordToEdit, setSelectedMvrRecordToEdit] = useState(null);
   const [clearinghouseRecords, setClearinghouseRecords] = useState([]);
   const [showAddFinePrint, setShowAddFinePrint] = useState(false);
   const [viewingFinePrint, setViewingFinePrint] = useState(null);
   const [signingLink, setSigningLink] = useState('');
+  const [showAllAlertsModal, setShowAllAlertsModal] = useState(false);
 
   // Form states
   const [profileForm, setProfileForm] = useState({});
@@ -340,6 +344,264 @@ const DriverDetail = () => {
     });
   };
 
+  // Dynamic Driver Compliance Alerts (Must be called unconditionally before early returns)
+  const alertsList = React.useMemo(() => {
+    if (!data) return [];
+    const alerts = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const comp = data?.compliance || {};
+    const med = data?.medical || {};
+    const drv = data?.driver || {};
+    const drugs = data?.drugRecords || [];
+    const mvrs = data?.mvrRecords || [];
+    const agrs = data?.agreements || [];
+
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      try {
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? String(dateStr).split('T')[0] : d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC' });
+      } catch (e) {
+        return String(dateStr);
+      }
+    };
+
+    // 1. Clearinghouse Checks
+    let chExpDate = null;
+    if (clearinghouseRecords && clearinghouseRecords.length > 0) {
+      const latestCH = clearinghouseRecords[0];
+      if (latestCH.queryExpDate || latestCH.expDate || latestCH.expirationDate) {
+        chExpDate = new Date(latestCH.queryExpDate || latestCH.expDate || latestCH.expirationDate);
+      }
+      if (latestCH.result === 'Violations Found' || (latestCH.selectedIssues && latestCH.selectedIssues.length > 0)) {
+        alerts.push({
+          id: 'ch-violation',
+          title: 'Clearinghouse Violation',
+          subtext: 'Violations logged in recent query record',
+          severity: 'red',
+          icon: '🚫'
+        });
+      }
+    } else if (comp.clearinghouse_query_expires || comp.clearinghouse_expires) {
+      chExpDate = new Date(comp.clearinghouse_query_expires || comp.clearinghouse_expires);
+    }
+
+    if (comp.clearinghouse_result && comp.clearinghouse_result.toLowerCase().includes('violation')) {
+      if (!alerts.some(a => a.id === 'ch-violation')) {
+        alerts.push({
+          id: 'ch-violation',
+          title: 'Clearinghouse Violation',
+          subtext: comp.clearinghouse_result,
+          severity: 'red',
+          icon: '🚫'
+        });
+      }
+    }
+
+    if (!chExpDate && clearinghouseRecords.length === 0 && !comp.clearinghouse_last_query && !comp.clearinghouse_query_date) {
+      alerts.push({
+        id: 'ch-missing',
+        title: 'Clearinghouse Query Missing',
+        subtext: 'No annual query record on file',
+        severity: 'orange',
+        icon: '⚠️'
+      });
+    } else if (chExpDate && !isNaN(chExpDate.getTime())) {
+      chExpDate.setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((chExpDate - today) / (1000 * 60 * 60 * 24));
+      if (chExpDate < today) {
+        alerts.push({
+          id: 'ch-expired',
+          title: 'Clearinghouse Query Expired',
+          subtext: `Expired on ${formatDate(chExpDate)}`,
+          severity: 'red',
+          icon: '🚫'
+        });
+      } else if (diffDays <= 30) {
+        alerts.push({
+          id: 'ch-expiring',
+          title: 'Clearinghouse Expiring Soon',
+          subtext: `Expires on ${formatDate(chExpDate)} (${diffDays} days left)`,
+          severity: 'orange',
+          icon: '⚠️'
+        });
+      }
+    }
+
+    // 2. Medical Certificate Checks
+    const medExp = med?.expiration_date || comp.med_card_expires;
+    if (med?.status === 'Expired' || med?.status === 'Revoked' || med?.status === 'Suspended') {
+      alerts.push({
+        id: 'med-status',
+        title: `Medical Card ${med.status}`,
+        subtext: med.expiration_date ? `Expired on ${formatDate(med.expiration_date)}` : `Status is ${med.status}`,
+        severity: 'red',
+        icon: '🚫'
+      });
+    } else if (!medExp && !med?.issue_date && !comp.med_issue_date) {
+      alerts.push({
+        id: 'med-missing',
+        title: 'Medical Certificate Missing',
+        subtext: 'No MEC record on file',
+        severity: 'orange',
+        icon: '⚠️'
+      });
+    } else if (medExp) {
+      const medExpDate = new Date(medExp);
+      if (!isNaN(medExpDate.getTime())) {
+        medExpDate.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((medExpDate - today) / (1000 * 60 * 60 * 24));
+        if (medExpDate < today) {
+          alerts.push({
+            id: 'med-expired',
+            title: 'Medical Certificate Expired',
+            subtext: `Expired on ${formatDate(medExpDate)}`,
+            severity: 'red',
+            icon: '🚫'
+          });
+        } else if (diffDays <= 30) {
+          alerts.push({
+            id: 'med-expiring',
+            title: 'Medical Card Expiring Soon',
+            subtext: `Expires on ${formatDate(medExpDate)} (${diffDays} days left)`,
+            severity: 'orange',
+            icon: '⚠️'
+          });
+        }
+      }
+    }
+
+    // 3. Drug & Alcohol Checks
+    const hasPositiveDrug = drugs.some(r => r.result === 'Positive' || r.result === 'Refusal');
+    if (hasPositiveDrug) {
+      alerts.push({
+        id: 'drug-positive',
+        title: 'Positive Drug Test Result',
+        subtext: 'Positive or refusal test result logged',
+        severity: 'red',
+        icon: '🚫'
+      });
+    } else if (drugs.length === 0 && !comp.drug_last_test && !comp.random_drug_date) {
+      alerts.push({
+        id: 'drug-missing',
+        title: 'Drug & Alcohol Test Missing',
+        subtext: 'No test record on file',
+        severity: 'orange',
+        icon: '⚠️'
+      });
+    } else {
+      const lastTestDateStr = (drugs.length > 0 && drugs[0].test_date) ? drugs[0].test_date : (comp.drug_last_test || comp.random_drug_date);
+      if (lastTestDateStr) {
+        const lastTestDate = new Date(lastTestDateStr);
+        if (!isNaN(lastTestDate.getTime())) {
+          const expDate = new Date(lastTestDate);
+          expDate.setFullYear(expDate.getFullYear() + 1);
+          expDate.setHours(0, 0, 0, 0);
+          const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+          if (expDate < today) {
+            alerts.push({
+              id: 'drug-due',
+              title: 'Random Drug Test Due',
+              subtext: `Due since ${formatDate(expDate)} (over 1 year ago)`,
+              severity: 'orange',
+              icon: '⚠️'
+            });
+          } else if (diffDays <= 30) {
+            alerts.push({
+              id: 'drug-expiring',
+              title: 'Annual Drug Test Due Soon',
+              subtext: `Due by ${formatDate(expDate)} (${diffDays} days left)`,
+              severity: 'orange',
+              icon: '⚠️'
+            });
+          }
+        }
+      }
+    }
+
+    if (comp.drug_alcohol_status === 'Not Enrolled') {
+      alerts.push({
+        id: 'drug-not-enrolled',
+        title: 'Not Enrolled in Consortium',
+        subtext: 'Drug & Alcohol program status is Not Enrolled',
+        severity: 'orange',
+        icon: '⚠️'
+      });
+    }
+
+    // 4. MVR / Driver Record Checks
+    const mvrExp = (mvrs.length > 0 && mvrs[0].expiration_date) ? mvrs[0].expiration_date : comp.mvr_expires;
+    if (!mvrExp && mvrs.length === 0 && !comp.mvr_date && !comp.mvr_last_checked) {
+      alerts.push({
+        id: 'mvr-missing',
+        title: 'MVR Annual Check Missing',
+        subtext: 'No MVR record on file',
+        severity: 'orange',
+        icon: '⚠️'
+      });
+    } else if (mvrExp) {
+      const mvrExpDate = new Date(mvrExp);
+      if (!isNaN(mvrExpDate.getTime())) {
+        mvrExpDate.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((mvrExpDate - today) / (1000 * 60 * 60 * 24));
+        if (mvrExpDate < today) {
+          alerts.push({
+            id: 'mvr-expired',
+            title: 'MVR Expired',
+            subtext: `Expired on ${formatDate(mvrExpDate)}`,
+            severity: 'red',
+            icon: '🚫'
+          });
+        } else if (diffDays <= 30) {
+          alerts.push({
+            id: 'mvr-expiring',
+            title: 'MVR Expiring Soon',
+            subtext: `Expires on ${formatDate(mvrExpDate)} (${diffDays} days left)`,
+            severity: 'orange',
+            icon: '⚠️'
+          });
+        }
+      }
+    }
+
+    const infractionsCount = comp.mvr_infractions || (mvrs.length > 0 ? mvrs[0].violations : 0);
+    const accidentsCount = comp.mvr_accidents || (mvrs.length > 0 ? mvrs[0].accidents : 0);
+    if (infractionsCount > 0 || accidentsCount > 0) {
+      alerts.push({
+        id: 'mvr-violations',
+        title: 'MVR Violations / Accidents',
+        subtext: `${infractionsCount || 0} violation(s), ${accidentsCount || 0} accident(s) logged`,
+        severity: 'orange',
+        icon: '⚠️'
+      });
+    }
+
+    // 5. Driver License / Status / Agreements
+    if (comp.driving_status === 'Suspended' || comp.driving_status === 'Prohibited') {
+      alerts.push({
+        id: 'driver-suspended',
+        title: `Driving Status ${comp.driving_status}`,
+        subtext: 'Driver is not authorized to operate fleet vehicles',
+        severity: 'red',
+        icon: '🚫'
+      });
+    }
+
+    if (agrs.length > 0 && agrs[0].status === 'sent') {
+      alerts.push({
+        id: 'agreement-pending',
+        title: 'Agreement Pending Signature',
+        subtext: `${agrs[0].agreement_type || 'Driver Agreement'} sent on ${formatDate(agrs[0].date_sent)}`,
+        severity: 'orange',
+        icon: '⚠️'
+      });
+    }
+
+    return alerts;
+  }, [data, clearinghouseRecords]);
+
   if (loading) {
     return (
       <div className="loading-state">
@@ -351,7 +613,7 @@ const DriverDetail = () => {
 
   if (!data) return null;
 
-  const { driver, compliance, agreements, medical, drugRecords = [] } = data;
+  const { driver, compliance = {}, agreements = [], medical = {}, drugRecords = [], mvrRecords = [] } = data;
   const activeAgreement = agreements && agreements.length > 0 ? agreements[0] : null;
 
   // --- Routed Full Page Views for Add Record / Edit Profile / Compliance / Send Agreement ---
@@ -451,6 +713,66 @@ const DriverDetail = () => {
           setShowAddRecordModal(false);
           setSelectedRecordToEdit(null);
           setSelectedRecordIndex(null);
+        }}
+      />
+    );
+  }
+
+  // --- Routed Full Page Views: MVR Record View ---
+  if (showMvrRecordPage) {
+    return (
+      <MvrRecordView
+        driver={driver}
+        initialRecord={selectedMvrRecordToEdit}
+        mvrRecords={mvrRecords}
+        onClose={() => {
+          setShowMvrRecordPage(false);
+          setSelectedMvrRecordToEdit(null);
+        }}
+        onSave={async (savedPayload, editRecord) => {
+          if (editRecord) {
+            setSelectedMvrRecordToEdit(editRecord);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+          }
+          if (selectedMvrRecordToEdit && selectedMvrRecordToEdit.id) {
+            const res = await apiRequest(`/api/drivers/${driver_id}/mvr-records/${selectedMvrRecordToEdit.id}`, {
+              method: 'PUT',
+              body: JSON.stringify(savedPayload)
+            });
+            const result = await res.json();
+            if (result.status !== 'success') {
+              throw new Error(result.message || 'Failed to update MVR record');
+            }
+            setActionSuccess('MVR record updated successfully!');
+          } else {
+            const res = await apiRequest(`/api/drivers/${driver_id}/mvr-records`, {
+              method: 'POST',
+              body: JSON.stringify(savedPayload)
+            });
+            const result = await res.json();
+            if (result.status !== 'success') {
+              throw new Error(result.message || 'Failed to save MVR record');
+            }
+            setActionSuccess('MVR record added successfully!');
+          }
+          await fetchDriverData();
+          setSelectedMvrRecordToEdit(null);
+        }}
+        onDelete={async (recordId) => {
+          const res = await apiRequest(`/api/drivers/${driver_id}/mvr-records/${recordId}`, {
+            method: 'DELETE'
+          });
+          const result = await res.json();
+          if (result.status === 'success') {
+            await fetchDriverData();
+            if (selectedMvrRecordToEdit && selectedMvrRecordToEdit.id === recordId) {
+              setSelectedMvrRecordToEdit(null);
+            }
+            setActionSuccess('MVR record deleted successfully!');
+          } else {
+            alert(result.message || 'Failed to delete record');
+          }
         }}
       />
     );
@@ -1470,7 +1792,7 @@ const DriverDetail = () => {
       {/* Profile Header Banner Card */}
       <div className="driver-profile-header-card card">
         <div className="profile-header-avatar">
-          {driver.first_name[0].toUpperCase()}{driver.last_name[0].toUpperCase()}
+          {((driver?.first_name || 'D')[0] || 'D').toUpperCase()}{((driver?.last_name || 'R')[0] || 'R').toUpperCase()}
         </div>
 
         <div className="profile-header-info">
@@ -1524,41 +1846,44 @@ const DriverDetail = () => {
       </div>
 
       {/* Alerts & Actions Banner */}
-      <div className="alerts-actions-banner">
+      <div className="alerts-actions-banner" style={alertsList.length === 0 ? { background: '#F0FDF4', borderColor: '#BBF7D0' } : {}}>
         <div className="alerts-banner-top">
           <div className="alerts-title-group">
-            <AlertTriangle size={18} className="alert-header-icon" />
-            <span className="alerts-header-title">Alerts & Actions</span>
-            <span className="alerts-badge-count">3</span>
+            {alertsList.length === 0 ? (
+              <CheckCircle2 size={18} style={{ color: '#16A34A' }} />
+            ) : (
+              <AlertTriangle size={18} className="alert-header-icon" />
+            )}
+            <span className="alerts-header-title" style={alertsList.length === 0 ? { color: '#16A34A' } : {}}>
+              {alertsList.length === 0 ? 'Compliance Status' : 'Alerts & Actions'}
+            </span>
+            <span className="alerts-badge-count" style={alertsList.length === 0 ? { background: '#16A34A' } : {}}>
+              {alertsList.length}
+            </span>
           </div>
-          <button className="link-action-text" onClick={() => navigate('/alerts')}>View All Alerts</button>
+          <button className="link-action-text" onClick={() => setShowAllAlertsModal(true)}>
+            View All Alerts
+          </button>
         </div>
 
-        <div className="alerts-grid-row">
-          <div className="alert-item-card alert-red">
-            <div className="alert-item-icon">🚫</div>
-            <div className="alert-item-text">
-              <strong className="alert-item-title">Clearinghouse Query Expired</strong>
-              <span className="alert-item-sub">Expired on 05/01/2024</span>
-            </div>
+        {alertsList.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.35rem 0.15rem', color: '#15803D', fontSize: '0.85rem', fontWeight: 600 }}>
+            <Check size={16} />
+            <span>All driver compliance items (Clearinghouse, Medical, Drug & Alcohol, MVR) are fully compliant and up to date.</span>
           </div>
-
-          <div className="alert-item-card alert-orange">
-            <div className="alert-item-icon">⚠️</div>
-            <div className="alert-item-text">
-              <strong className="alert-item-title">Random Drug Test Due</strong>
-              <span className="alert-item-sub">Due by 06/15/2024</span>
-            </div>
+        ) : (
+          <div className="alerts-grid-row">
+            {alertsList.slice(0, 3).map((alert, idx) => (
+              <div key={idx} className={`alert-item-card alert-${alert.severity}`}>
+                <div className="alert-item-icon">{alert.icon}</div>
+                <div className="alert-item-text">
+                  <strong className="alert-item-title">{alert.title}</strong>
+                  <span className="alert-item-sub">{alert.subtext}</span>
+                </div>
+              </div>
+            ))}
           </div>
-
-          <div className="alert-item-card alert-orange">
-            <div className="alert-item-icon">⚠️</div>
-            <div className="alert-item-text">
-              <strong className="alert-item-title">MVR Expiring Soon</strong>
-              <span className="alert-item-sub">Expires on 07/10/2024</span>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Row 1: Summary Cards Grid (4 Columns) */}
@@ -1713,7 +2038,15 @@ const DriverDetail = () => {
               <UserCheck size={16} className="card-icon-blue" />
               <h4>Driver Record (MVR)</h4>
             </div>
-            <span className="pill-badge pill-green">Valid</span>
+            {(() => {
+              const hasViolations = mvrRecords && mvrRecords.some(r => (r.violations > 0 || r.accidents > 0));
+              const isExpired = mvrRecords && mvrRecords.length > 0 && mvrRecords[0].expiration_date && new Date(mvrRecords[0].expiration_date) < new Date();
+              return (
+                <span className={`pill-badge ${isExpired ? 'pill-red' : hasViolations ? 'pill-orange' : 'pill-green'}`}>
+                  {isExpired ? 'Expired' : hasViolations ? 'Violations Logged' : 'Valid'}
+                </span>
+              );
+            })()}
           </div>
 
           <div className="card-table-wrapper">
@@ -1728,34 +2061,52 @@ const DriverDetail = () => {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>04/10/2024</td>
-                  <td>CA</td>
-                  <td>1</td>
-                  <td>0</td>
-                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
-                </tr>
-                <tr>
-                  <td>10/10/2023</td>
-                  <td>CA</td>
-                  <td>0</td>
-                  <td>0</td>
-                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
-                </tr>
-                <tr>
-                  <td>04/10/2023</td>
-                  <td>CA</td>
-                  <td>2</td>
-                  <td>1</td>
-                  <td><button className="link-action-sm" onClick={() => setShowComplianceModal(true)}>View/Edit</button></td>
-                </tr>
+                {mvrRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: 'center', color: '#64748B', padding: '1.5rem 0.5rem' }}>
+                      No MVR records logged yet. Click 'Add New MVR' to add one.
+                    </td>
+                  </tr>
+                ) : (
+                  mvrRecords.slice(0, 4).map((rec, index) => (
+                    <tr key={rec.id || index}>
+                      <td>
+                        {rec.mvr_date ? new Date(rec.mvr_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC' }) : '—'}
+                      </td>
+                      <td>{rec.state || '—'}</td>
+                      <td>
+                        <span className={rec.violations > 0 ? 'text-tag-red' : 'text-tag-green'}>
+                          {rec.violations || 0}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={rec.accidents > 0 ? 'text-tag-red' : 'text-tag-green'}>
+                          {rec.accidents || 0}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="link-action-sm" onClick={() => {
+                          setSelectedMvrRecordToEdit(rec);
+                          setShowMvrRecordPage(true);
+                        }}>
+                          View/Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="card-bottom-bar space-between">
-            <button className="link-action-text" onClick={() => setShowComplianceModal(true)}>View All MVR Records</button>
-            <button className="btn-solid-sm" onClick={() => setShowComplianceModal(true)}>Add New MVR</button>
+
+            <button className="btn-solid-sm" onClick={() => {
+              setSelectedMvrRecordToEdit(null);
+              setShowMvrRecordPage(true);
+            }}>
+              Add New MVR
+            </button>
           </div>
         </div>
 
@@ -1820,7 +2171,7 @@ const DriverDetail = () => {
               <FlaskConical size={16} className="card-icon-purple" />
               <h4>Drug Test History</h4>
             </div>
-            <button className="link-action-text" onClick={() => setShowComplianceModal(true)}>View All</button>
+            {/* <button className="link-action-text" onClick={() => setShowComplianceModal(true)}>View All</button> */}
           </div>
 
           <div className="card-table-wrapper">
@@ -1861,7 +2212,7 @@ const DriverDetail = () => {
           </div>
 
           <div className="card-bottom-bar">
-            <button className="btn-light-sm" onClick={() => setShowComplianceModal(true)}>Add New Test Record</button>
+            <button className="btn-light-sm">Add New Test Record</button>
           </div>
         </div>
 
@@ -2314,6 +2665,46 @@ const DriverDetail = () => {
           fetchDriverData();
         }}
       />
+
+      {/* All Active Compliance Alerts Modal */}
+      {showAllAlertsModal && (
+        <div className="alerts-modal-overlay" onClick={() => setShowAllAlertsModal(false)}>
+          <div className="alerts-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <div className="alerts-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <AlertTriangle size={20} className="alert-header-icon" style={alertsList.length === 0 ? { color: '#16A34A' } : {}} />
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800', color: alertsList.length > 0 ? '#DC2626' : '#16A34A' }}>
+                  All Active Compliance Alerts ({alertsList.length})
+                </h3>
+              </div>
+              <button className="alerts-modal-close" onClick={() => setShowAllAlertsModal(false)} aria-label="Close">
+                &times;
+              </button>
+            </div>
+            <div className="alerts-modal-body">
+              {alertsList.length === 0 ? (
+                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#16A34A', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                  <CheckCircle2 size={36} />
+                  <strong style={{ fontSize: '1rem' }}>No Active Compliance Alerts</strong>
+                  <span style={{ fontSize: '0.825rem', color: '#64748B' }}>This driver has no pending compliance issues or expired records.</span>
+                </div>
+              ) : (
+                <div className="alerts-modal-list">
+                  {alertsList.map((alert, idx) => (
+                    <div key={idx} className={`alert-item-card alert-${alert.severity}`}>
+                      <div className="alert-item-icon">{alert.icon}</div>
+                      <div className="alert-item-text" style={{ flex: 1 }}>
+                        <strong className="alert-item-title">{alert.title}</strong>
+                        <span className="alert-item-sub">{alert.subtext}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -110,7 +110,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
       setMvrType('Annual MVR Check');
       setMvrDate('');
       setExpirationDate('');
-      setState(driver.license_state || '');
+      setState(driver?.license_state || '');
       setViolations(0);
       setAccidents(0);
       setNotes('');
@@ -252,7 +252,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
         <div className="breadcrumbs-nav-mvr">
           <span className="breadcrumb-link-mvr" onClick={onClose} style={{ cursor: 'pointer' }}>Drivers</span>
           <span className="breadcrumb-separator-mvr">/</span>
-          <span className="breadcrumb-current-mvr">{driver.id}. {initialRecord ? 'Edit' : 'Add'} MVR Record</span>
+          <span className="breadcrumb-current-mvr">{driver?.id || 2}. {initialRecord ? 'Edit' : 'Add'} MVR Record</span>
         </div>
         <button className="btn-back-driver" onClick={onClose}>
           <ArrowLeft size={16} />
@@ -263,7 +263,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
       {/* Main Form Card */}
       <div className="card form-page-card mvr-form-card">
         <div className="mvr-card-header">
-          <h2>{driver.id}. {initialRecord ? 'Edit' : 'Add'} MVR Record</h2>
+          <h2>{driver?.id || 2}. {initialRecord ? 'Edit' : 'Add'} MVR Record</h2>
         </div>
 
         {error && (

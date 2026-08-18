@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  UploadCloud, 
-  FileText, 
-  Eye, 
-  Download, 
-  Info, 
-  HelpCircle, 
-  Calendar, 
+import {
+  X,
+  UploadCloud,
+  FileText,
+  Eye,
+  Download,
+  Info,
+  HelpCircle,
+  Calendar,
   ArrowLeft,
   Landmark,
   AlertTriangle,
@@ -80,7 +80,7 @@ const formatDateForDisplay = (dVal) => {
 const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, onSave }) => {
   const fileInputRef = React.useRef(null);
   const { apiRequest } = useAuth();
-  
+
   // Clearinghouse form states
   const [queryType, setQueryType] = useState('Full Query');
   const [queryEntryDate, setQueryEntryDate] = useState('');
@@ -154,7 +154,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
           setQueryNotes(initialRecord.queryNotes || initialRecord.notes || 'Routine annual DOT clearinghouse query.');
           setAdditionalInfo(initialRecord.additionalInfo || '');
           setSelectedIssues(initialRecord.selectedIssues || []);
-          
+
           const fileData = initialRecord.uploadedFile || (initialRecord.uploaded_file_name ? {
             name: initialRecord.uploaded_file_name,
             size: initialRecord.uploaded_file_size || '',
@@ -186,7 +186,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
     const now = new Date();
     const timeStr = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const isImg = file.type.startsWith('image/');
-    
+
     const type = recordType === 'mec' ? 'mec' : 'repair';
     const formData = new FormData();
     formData.append('files', file);
@@ -239,7 +239,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
   };
 
   const toggleIssue = (issueKey) => {
-    setSelectedIssues(prev => 
+    setSelectedIssues(prev =>
       prev.includes(issueKey) ? prev.filter(k => k !== issueKey) : [...prev, issueKey]
     );
   };
@@ -270,6 +270,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
   const email = driver ? (driver.email || 'michael.anderson@email.com') : 'michael.anderson@email.com';
 
   const issuesList = [
+    { key: 'negative', label: 'Negative' },
     { key: 'positive_drug', label: 'Positive Drug Results' },
     { key: 'specimen_tampering', label: 'Specimen Tampering' },
     { key: 'negative_rtw', label: 'Negative Return-to-Duty Test' },
@@ -282,7 +283,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
 
   return (
     <div className="driver-detail-container animate-fade-in mec-full-page-wrapper">
-      
+
       {/* Top Header Navigation Bar */}
       <div className="driver-header-v2">
         <button className="btn btn-secondary back-btn-v2" onClick={onClose}>
@@ -292,7 +293,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
       </div>
 
       <div className="card form-page-card mec-page-card">
-        
+
         {/* Page Header */}
         <div className="mec-modal-header">
           <div className="mec-header-left">
@@ -310,7 +311,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
         </div>
 
         <form onSubmit={handleSubmit} className="mec-modal-body">
-          
+
           {/* Section 1: Driver Information (Read Only) */}
           <div className="mec-section">
             <h4 className="mec-section-title">Driver Information (Read Only)</h4>
@@ -343,7 +344,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
             <>
               {/* Two Column Upper Layout */}
               <div className="mec-two-column-grid">
-                
+
                 {/* Left Column: Query Details */}
                 <div className="mec-left-col">
                   <h4 className="mec-section-title">Query Details</h4>
@@ -448,18 +449,18 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
                   </p>
 
                   {/* Dropzone */}
-                  <div 
+                  <div
                     className="mec-dropzone"
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <input 
+                    <input
                       ref={fileInputRef}
-                      type="file" 
-                      accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf" 
-                      onChange={handleFileChange} 
-                      style={{ display: 'none' }} 
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf"
+                      onChange={handleFileChange}
+                      style={{ display: 'none' }}
                     />
                     <div className="dropzone-cloud-circle">
                       <UploadCloud size={24} className="cloud-icon" />
@@ -498,11 +499,11 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
                         </div>
                         <div className="file-pill-actions">
                           {uploadedFile.previewUrl && uploadedFile.previewUrl !== '#' && (
-                            <a 
-                              href={getFileUrl(uploadedFile.previewUrl)} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="btn-file-icon" 
+                            <a
+                              href={getFileUrl(uploadedFile.previewUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn-file-icon"
                               title="Preview / View Document"
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -510,10 +511,10 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
                             </a>
                           )}
                           {uploadedFile.previewUrl && uploadedFile.previewUrl !== '#' && (
-                            <a 
-                              href={getFileUrl(uploadedFile.previewUrl)} 
-                              download={uploadedFile.name} 
-                              className="btn-file-icon" 
+                            <a
+                              href={getFileUrl(uploadedFile.previewUrl)}
+                              download={uploadedFile.name}
+                              className="btn-file-icon"
                               title="Download Document"
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -685,7 +686,7 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
 
                   <div className="mec-form-group status-group-container">
                     <label className="mec-label status-label-row">
-                      Status * 
+                      Status *
                       <span className="tooltip-icon" title="Choose the current status of this medical certificate">
                         <HelpCircle size={14} />
                       </span>
@@ -724,20 +725,20 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
                 <div className="mec-right-col">
                   <h4 className="mec-section-title">Upload MEC Document *</h4>
                   <p className="upload-subtitle-text">Upload a clear image or PDF of the driver's Medical Examiner Certificate.</p>
-                  
+
                   {/* Dropzone */}
-                  <div 
+                  <div
                     className="mec-dropzone"
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <input 
+                    <input
                       ref={fileInputRef}
-                      type="file" 
-                      accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf" 
-                      onChange={handleFileChange} 
-                      style={{ display: 'none' }} 
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf"
+                      onChange={handleFileChange}
+                      style={{ display: 'none' }}
                     />
                     <div className="dropzone-cloud-circle">
                       <UploadCloud size={24} className="cloud-icon" />
@@ -764,10 +765,10 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
                       {/* Visual Uploaded File Preview */}
                       <div className="mec-certificate-card-preview" style={{ padding: '0.5rem', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '260px', overflow: 'hidden' }}>
                         {uploadedFile.isImage || /\.(jpg|jpeg|png|webp|gif)$/i.test(uploadedFile.name) ? (
-                          <img 
-                            src={getFileUrl(uploadedFile.previewUrl)} 
-                            alt="Uploaded MEC Document Preview" 
-                            style={{ maxWidth: '100%', maxHeight: '320px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #E2E8F0' }} 
+                          <img
+                            src={getFileUrl(uploadedFile.previewUrl)}
+                            alt="Uploaded MEC Document Preview"
+                            style={{ maxWidth: '100%', maxHeight: '320px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #E2E8F0' }}
                           />
                         ) : (
                           <iframe
@@ -793,11 +794,11 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
                         </div>
                         <div className="file-pill-actions">
                           {uploadedFile.previewUrl && uploadedFile.previewUrl !== '#' && (
-                            <a 
-                              href={getFileUrl(uploadedFile.previewUrl)} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="btn-file-icon" 
+                            <a
+                              href={getFileUrl(uploadedFile.previewUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn-file-icon"
                               title="Preview / View Document"
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -805,10 +806,10 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
                             </a>
                           )}
                           {uploadedFile.previewUrl && uploadedFile.previewUrl !== '#' && (
-                            <a 
-                              href={getFileUrl(uploadedFile.previewUrl)} 
-                              download={uploadedFile.name} 
-                              className="btn-file-icon" 
+                            <a
+                              href={getFileUrl(uploadedFile.previewUrl)}
+                              download={uploadedFile.name}
+                              className="btn-file-icon"
                               title="Download Document"
                               onClick={(e) => e.stopPropagation()}
                             >

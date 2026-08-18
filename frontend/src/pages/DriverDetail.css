@@ -146,7 +146,7 @@
 }
 
 .meta-item .meta-value {
-  font-size: 0.875rem;
+  font-size: 0.675rem;
   font-weight: 700;
   color: #0F172A;
 }
@@ -165,7 +165,7 @@
   background: #FFFFFF;
   border: 1px solid #BFDBFE;
   color: #2563EB;
-  font-size: 0.825rem;
+  font-size: 0.625rem;
   font-weight: 600;
   padding: 0.55rem 0.95rem;
   border-radius: 8px;
@@ -185,7 +185,7 @@
   background: #2563EB;
   border: 1px solid #2563EB;
   color: #FFFFFF;
-  font-size: 0.825rem;
+  font-size: 0.625rem;
   font-weight: 600;
   padding: 0.55rem 1.15rem;
   border-radius: 8px;
@@ -270,34 +270,61 @@
 }
 
 .alert-item-card {
-  background: rgba(255, 255, 255, 0.85);
+  background: #FFFFFF;
   border-radius: 8px;
   padding: 0.75rem 0.95rem;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  border: 1px solid rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
-.alert-item-icon {
-  font-size: 1.15rem;
+.alert-item-card.alert-red {
+  background: #FFFBEB;
+  border-color: #FDE68A;
 }
 
-.alert-item-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-
-.alert-item-title {
-  font-size: 0.825rem;
-  font-weight: 700;
+.alert-item-card.alert-red .alert-item-title {
   color: #991B1B;
+  font-size: 0.760rem;
+  display: block;
 }
 
-.alert-item-sub {
-  font-size: 0.725rem;
+.alert-item-card.alert-red .alert-item-sub {
   color: #7F1D1D;
+  font-size: 0.760rem;
+  display: block;
+}
+
+.alert-item-card.alert-orange {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+
+.alert-item-card.alert-orange .alert-item-title {
+  color: #991B1B;
+  font-size: 0.760rem;
+  display: block;
+}
+
+.alert-item-card.alert-orange .alert-item-sub {
+  color: #7F1D1D;
+  font-size: 0.760rem;
+  display: block;
+}
+
+.alert-item-card.alert-green {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+}
+
+.alert-item-card.alert-green .alert-item-title {
+  color: #166534;
+}
+
+.alert-item-card.alert-green .alert-item-sub {
+  color: #14532D;
 }
 
 /* Dashboard Cards Grid (4 Equal Columns) */
@@ -637,6 +664,7 @@
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
+    margin-bottom: 15rem;
   }
 
   .driver-profile-header-card {
@@ -808,11 +836,23 @@
 }
 
 @keyframes fadeInOverlay {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideInModal {
-  from { transform: translateY(16px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
