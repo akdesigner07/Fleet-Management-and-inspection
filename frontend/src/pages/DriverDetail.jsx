@@ -21,6 +21,36 @@ const getPdfUrl = (path) => {
   return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
 };
 
+const isCleanClearinghouseIssue = (k) => {
+  if (!k) return false;
+  const str = String(k).trim().toLowerCase();
+  return (
+    str === 'negative' ||
+    str === 'negative_rtw' ||
+    str === 'negative return-to-duty test' ||
+    str === 'no violations found' ||
+    str === 'compliant' ||
+    str === 'clean' ||
+    str.includes('negative')
+  );
+};
+
+const hasClearinghouseViolation = (issues, result) => {
+  if (issues && Array.isArray(issues) && issues.length > 0) {
+    return issues.some(k => !isCleanClearinghouseIssue(k));
+  }
+  if (result) {
+    const resStr = String(result).trim().toLowerCase();
+    if (resStr.includes('negative') || resStr === 'no violations found' || resStr === 'compliant' || resStr === 'no queries') {
+      return false;
+    }
+    if (resStr.includes('violation')) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const DriverDetail = () => {
   const { driver_id } = useParams();
   const navigate = useNavigate();
@@ -375,7 +405,7 @@ const DriverDetail = () => {
       if (latestCH.queryExpDate || latestCH.expDate || latestCH.expirationDate) {
         chExpDate = new Date(latestCH.queryExpDate || latestCH.expDate || latestCH.expirationDate);
       }
-      if (latestCH.result === 'Violations Found' || (latestCH.selectedIssues && latestCH.selectedIssues.length > 0)) {
+      if (hasClearinghouseViolation(latestCH.selectedIssues, latestCH.result)) {
         alerts.push({
           id: 'ch-violation',
           title: 'Clearinghouse Violation',
@@ -384,16 +414,15 @@ const DriverDetail = () => {
           icon: '🚫'
         });
       }
-    } else if (comp.clearinghouse_query_expires || comp.clearinghouse_expires) {
-      chExpDate = new Date(comp.clearinghouse_query_expires || comp.clearinghouse_expires);
-    }
-
-    if (comp.clearinghouse_result && comp.clearinghouse_result.toLowerCase().includes('violation')) {
-      if (!alerts.some(a => a.id === 'ch-violation')) {
+    } else {
+      if (comp.clearinghouse_query_expires || comp.clearinghouse_expires) {
+        chExpDate = new Date(comp.clearinghouse_query_expires || comp.clearinghouse_expires);
+      }
+      if (hasClearinghouseViolation([], comp.clearinghouse_result || comp.clearinghouse_status)) {
         alerts.push({
           id: 'ch-violation',
           title: 'Clearinghouse Violation',
-          subtext: comp.clearinghouse_result,
+          subtext: comp.clearinghouse_result || 'Violations Found',
           severity: 'red',
           icon: '🚫'
         });
@@ -1065,7 +1094,7 @@ const DriverDetail = () => {
               DRIVER INFORMATION (READ ONLY)
             </h4>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+          <div className="view-agreement-grid-4">
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Driver Name</label>
               <input type="text" className="form-control" value={`${driver.first_name || ''} ${driver.last_name || ''}`} readOnly style={{ background: '#F8FAFC', color: '#64748B' }} />
@@ -1100,9 +1129,9 @@ const DriverDetail = () => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {selectedFps.map((fp) => (
-                <div key={fp.id} style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '1rem', background: '#F8FAFC' }}>
+                <div key={fp.id} className="agreement-clause-box">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                    <CheckCircle2 size={16} style={{ color: '#16A34A' }} />
+                    <CheckCircle2 size={16} style={{ color: '#16A34A', flexShrink: 0 }} />
                     <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#1E293B' }}>{fp.title}</h5>
                   </div>
                   {fp.description && (
@@ -1110,7 +1139,7 @@ const DriverDetail = () => {
                       {fp.description}
                     </p>
                   )}
-                  <p style={{ margin: '0 0 0 1.4rem', fontSize: '0.825rem', color: '#334155', lineHeight: '1.5', whiteSpace: 'pre-wrap', background: 'white', border: '1px solid #F1F5F9', padding: '0.75rem', borderRadius: '6px' }}>
+                  <p className="clause-body-text">
                     {fp.text}
                   </p>
                 </div>
@@ -1129,41 +1158,41 @@ const DriverDetail = () => {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+            <div className="agreement-status-grid-2">
               {/* Left: status details */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div className="agreement-status-list">
                 {[
                   { label: 'Date Sent', value: agr.date_sent ? new Date(agr.date_sent).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—' },
                   { label: 'Sent By', value: (agr.sender_fname || agr.sender_lname) ? `${agr.sender_fname || ''} ${agr.sender_lname || ''} (Admin)` : 'Admin', icon: <Mail size={13} style={{ color: '#64748B' }} /> },
                   { label: 'Date Received', value: agr.date_received ? new Date(agr.date_received).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Pending Signature' },
                   { label: 'Received By', value: agr.status === 'received' ? `${driver.first_name} ${driver.last_name}` : '—' },
                 ].map(row => (
-                  <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.825rem', color: '#64748B' }}>{row.label}</span>
-                    <strong style={{ fontSize: '0.825rem', color: '#1E293B', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <div key={row.label} className="status-detail-row">
+                    <span className="row-label">{row.label}</span>
+                    <strong className="row-value">
                       {row.value} {row.icon}
                     </strong>
                   </div>
                 ))}
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid #F1F5F9' }}>
-                  <span style={{ fontSize: '0.825rem', color: '#64748B' }}>Document</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FileText size={14} style={{ color: '#94A3B8' }} />
+                <div className="status-detail-row" style={{ paddingTop: '0.5rem', borderTop: '1px solid #F1F5F9' }}>
+                  <span className="row-label">Document</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <FileText size={14} style={{ color: '#94A3B8', flexShrink: 0 }} />
                     {agr.status === 'received' && agr.pdf_file_path ? (
                       <>
                         <a
                           href={getPdfUrl(agr.pdf_file_path)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ fontSize: '0.8rem', fontWeight: '600', color: '#2563EB', textDecoration: 'underline' }}
+                          style={{ fontSize: '0.8rem', fontWeight: '600', color: '#2563EB', textDecoration: 'underline', wordBreak: 'break-all' }}
                         >
                           {`${(agr.agreement_type || 'Driver_Agreement').replace(/\s+/g, '_')}_Signed.pdf`}
                         </a>
-                        <a href={getPdfUrl(agr.pdf_file_path)} target="_blank" rel="noopener noreferrer" style={{ color: '#64748B' }} title="Preview / View PDF">
+                        <a href={getPdfUrl(agr.pdf_file_path)} target="_blank" rel="noopener noreferrer" style={{ color: '#64748B', display: 'flex', alignItems: 'center' }} title="Preview / View PDF">
                           <Eye size={14} />
                         </a>
-                        <a href={getPdfUrl(agr.pdf_file_path)} download style={{ color: '#2563EB' }} title="Download PDF">
+                        <a href={getPdfUrl(agr.pdf_file_path)} download style={{ color: '#2563EB', display: 'flex', alignItems: 'center' }} title="Download PDF">
                           <Download size={14} />
                         </a>
                       </>
@@ -1176,33 +1205,33 @@ const DriverDetail = () => {
 
               {/* Right: Signed Document Preview */}
               {agr.status === 'received' && agr.pdf_file_path ? (
-                <div style={{ border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '1rem', background: '#FAFAFA' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <div className="signed-preview-card">
+                  <div className="signed-preview-header">
                     <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em' }}>SIGNED DOCUMENT PREVIEW</span>
                     <a href={getPdfUrl(agr.pdf_file_path)} download style={{ color: '#2563EB' }} title="Download Signed PDF">
                       <Download size={15} />
                     </a>
                   </div>
-                  <div style={{ display: 'flex', gap: '1rem' }}>
-                    <div style={{ width: '80px', minHeight: '100px', background: 'white', border: '1px solid #E2E8F0', borderRadius: '6px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.5rem', gap: '0.25rem', flexShrink: 0 }}>
+                  <div className="signed-preview-body">
+                    <div className="signed-doc-thumbnail">
                       <FileText size={24} style={{ color: '#2563EB' }} />
                       <span style={{ fontSize: '0.6rem', textAlign: 'center', color: '#1E293B', fontWeight: '700', lineHeight: 1.3 }}>{agr.agreement_type || 'Agreement'}</span>
                       <span style={{ fontSize: '0.6rem', fontStyle: 'italic', color: '#16A34A', borderTop: '1px solid #E2E8F0', width: '100%', textAlign: 'center', paddingTop: '0.25rem', fontWeight: '600' }}>Signed</span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                    <div className="signed-doc-meta">
                       <div>
-                        <div style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.03em' }}>File Name</div>
-                        <div style={{ fontSize: '0.8rem', color: '#1E293B', fontWeight: '600' }}>{`${(agr.agreement_type || 'Driver_Agreement').replace(/\s+/g, '_')}_Signed.pdf`}</div>
+                        <div className="meta-label">File Name</div>
+                        <div className="meta-filename">{`${(agr.agreement_type || 'Driver_Agreement').replace(/\s+/g, '_')}_Signed.pdf`}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Signed On</div>
+                        <div className="meta-label">Signed On</div>
                         <div style={{ fontSize: '0.8rem', color: '#1E293B', fontWeight: '600' }}>{agr.date_received ? new Date(agr.date_received).toLocaleString('en-US') : '—'}</div>
                       </div>
                       <div>
                         <a
                           href={getPdfUrl(agr.pdf_file_path)}
                           download
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: '#2563EB', color: 'white', padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: '600', textDecoration: 'none', marginTop: '0.25rem' }}
+                          className="btn-download-full"
                         >
                           <Download size={13} /> Download Signed PDF
                         </a>
@@ -1896,7 +1925,17 @@ const DriverDetail = () => {
               <Landmark size={16} className="card-icon-blue" />
               <h4>Clearinghouse Summary</h4>
             </div>
-            <span className="pill-badge pill-green">Compliant</span>
+            {(() => {
+              const latestCH = clearinghouseRecords && clearinghouseRecords.length > 0 ? clearinghouseRecords[0] : null;
+              const isViolations = latestCH
+                ? hasClearinghouseViolation(latestCH.selectedIssues, latestCH.result)
+                : hasClearinghouseViolation([], compliance?.clearinghouse_result || compliance?.clearinghouse_status);
+              return (
+                <span className={`pill-badge ${isViolations ? 'pill-red' : 'pill-green'}`}>
+                  {isViolations ? 'Violations Found' : 'Compliant'}
+                </span>
+              );
+            })()}
           </div>
 
           <div className="card-table-wrapper">
@@ -1918,24 +1957,31 @@ const DriverDetail = () => {
                     </td>
                   </tr>
                 ) : (
-                  clearinghouseRecords.map((rec, index) => (
-                    <tr key={index}>
-                      <td>{rec.type}</td>
-                      <td>{rec.entryDate}</td>
-                      <td>{rec.expDate}</td>
-                      <td><span className={rec.statusClass}>{rec.result}</span></td>
-                      <td>
-                        <button className="link-action-sm" onClick={() => {
-                          setSelectedRecordToEdit(rec);
-                          setSelectedRecordIndex(index);
-                          setRecordModalType('clearinghouse');
-                          setShowAddRecordModal(true);
-                        }}>
-                          View/Edit
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  clearinghouseRecords.map((rec, index) => {
+                    const rowViolation = hasClearinghouseViolation(rec.selectedIssues, rec.result);
+                    return (
+                      <tr key={index}>
+                        <td>{rec.type}</td>
+                        <td>{rec.entryDate}</td>
+                        <td>{rec.expDate}</td>
+                        <td>
+                          <span className={rowViolation ? 'text-tag-red' : 'text-tag-green'}>
+                            {rowViolation ? 'Violations Found' : 'No Violations Found'}
+                          </span>
+                        </td>
+                        <td>
+                          <button className="link-action-sm" onClick={() => {
+                            setSelectedRecordToEdit(rec);
+                            setSelectedRecordIndex(index);
+                            setRecordModalType('clearinghouse');
+                            setShowAddRecordModal(true);
+                          }}>
+                            View/Edit
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -2186,33 +2232,42 @@ const DriverDetail = () => {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Random</td>
-                  <td>04/11/2024</td>
-                  <td><span className="text-tag-green">Negative</span></td>
-                  <td>04/11/2024</td>
-                  <td><span className="pill-badge-xs pill-green">Valid</span></td>
-                </tr>
-                <tr>
-                  <td>Random</td>
-                  <td>01/05/2024</td>
-                  <td><span className="text-tag-green">Negative</span></td>
-                  <td>01/06/2024</td>
-                  <td><span className="pill-badge-xs pill-green">Valid</span></td>
-                </tr>
-                <tr>
-                  <td>Pre-Employment</td>
-                  <td>05/20/2022</td>
-                  <td><span className="text-tag-green">Negative</span></td>
-                  <td>05/21/2022</td>
-                  <td><span className="pill-badge-xs pill-green">Valid</span></td>
-                </tr>
+                {drugRecords && drugRecords.length > 0 ? (
+                  drugRecords.slice(0, 4).map((rec, index) => (
+                    <tr key={rec.id || index}>
+                      <td>{rec.test_type}</td>
+                      <td>{rec.test_date ? new Date(rec.test_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC' }) : '—'}</td>
+                      <td>
+                        <span className={rec.result === 'Negative' ? 'text-tag-green' : 'text-tag-red'}>
+                          {rec.result}
+                        </span>
+                      </td>
+                      <td>{rec.result_date ? new Date(rec.result_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'UTC' }) : '—'}</td>
+                      <td>
+                        <span className={`pill-badge-xs ${rec.result === 'Negative' ? 'pill-green' : 'pill-red'}`}>
+                          {rec.result === 'Negative' ? 'Valid' : 'Non-Compliant'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: 'center', color: '#64748B', padding: '1.5rem 0.5rem' }}>
+                      No drug test records logged yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="card-bottom-bar">
-            <button className="btn-light-sm">Add New Test Record</button>
+            <button className="btn-light-sm" onClick={() => {
+              setSelectedDrugRecordToEdit(null);
+              setShowDrugRecordPage(true);
+            }}>
+              Add New Test Record
+            </button>
           </div>
         </div>
 
@@ -2237,98 +2292,32 @@ const DriverDetail = () => {
               </thead>
               <tbody>
                 {agreements && agreements.length > 0 ? (
-                  agreements.flatMap((agr) => {
-                    let ids = [];
-                    try {
-                      ids = typeof agr.fine_print_ids === 'string' ? JSON.parse(agr.fine_print_ids) : (agr.fine_print_ids || []);
-                    } catch (e) {
-                      ids = [];
-                    }
-
-                    const selectedFps = finePrints.filter(fp => ids.includes(fp.id));
-
-                    if (selectedFps.length > 0) {
-                      return selectedFps.map((fp) => (
-                        <tr key={`${agr.id}-${fp.id}`}>
-                          <td>
-                            <CheckCircle2 size={14} className={agr.status === 'received' ? "icon-check-green" : "icon-check-orange"} />{' '}
-                            {fp.title} {agr.status === 'received' ? '(Signed)' : '(Pending)'}
-                          </td>
-                          <td>
-                            {agr.status === 'received' ? (
-                              agr.date_received ? new Date(agr.date_received).toLocaleDateString('en-US') : 'Completed'
-                            ) : (
-                              <span style={{ color: '#EAB308', fontWeight: '600' }}>Pending</span>
-                            )}
-                          </td>
-                          <td>
-                            <button className="link-action-sm" onClick={() => { setSelectedAgreementToView(agr); setShowViewAgreementModal(true); }}>
-                              View
-                            </button>
-                          </td>
-                        </tr>
-                      ));
-                    }
-
-                    return (
-                      <tr key={agr.id}>
-                        <td>
-                          <CheckCircle2 size={14} className={agr.status === 'received' ? "icon-check-green" : "icon-check-orange"} />{' '}
-                          {agr.agreement_type || 'Driver Agreement'} {agr.status === 'received' ? '(Signed)' : '(Pending)'}
-                        </td>
-                        <td>
-                          {agr.status === 'received' ? (
-                            agr.date_received ? new Date(agr.date_received).toLocaleDateString('en-US') : 'Completed'
-                          ) : (
-                            <span style={{ color: '#EAB308', fontWeight: '600' }}>Pending</span>
-                          )}
-                        </td>
-                        <td>
-                          <button className="link-action-sm" onClick={() => { setSelectedAgreementToView(agr); setShowViewAgreementModal(true); }}>
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  agreements.map((agr) => (
+                    <tr key={agr.id}>
+                      <td>
+                        <CheckCircle2 size={14} className={agr.status === 'received' ? "icon-check-green" : "icon-check-orange"} />{' '}
+                        {agr.agreement_type || 'Driver Proficiency Agreement'} {agr.status === 'received' ? '(Signed)' : '(Pending)'}
+                      </td>
+                      <td>
+                        {agr.status === 'received' ? (
+                          agr.date_received ? new Date(agr.date_received).toLocaleDateString('en-US') : 'Completed'
+                        ) : (
+                          <span style={{ color: '#EAB308', fontWeight: '600' }}>Pending</span>
+                        )}
+                      </td>
+                      <td>
+                        <button className="link-action-sm" onClick={() => { setSelectedAgreementToView(agr); setShowViewAgreementModal(true); }}>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 ) : (
-                  finePrints && finePrints.length > 0 ? (
-                    finePrints.map((fp) => (
-                      <tr key={fp.id}>
-                        <td><CheckCircle2 size={14} className="icon-check-green" /> {fp.title}</td>
-                        <td>{fp.created_at ? new Date(fp.created_at).toLocaleDateString('en-US') : '04/15/2022'}</td>
-                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
-                      </tr>
-                    ))
-                  ) : (
-                    <>
-                      <tr>
-                        <td><CheckCircle2 size={14} className="icon-check-green" /> Driver Application / Resume</td>
-                        <td>04/15/2022</td>
-                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
-                      </tr>
-                      <tr>
-                        <td><CheckCircle2 size={14} className="icon-check-green" /> Drug & Alcohol Policy (Signed)</td>
-                        <td>04/15/2022</td>
-                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
-                      </tr>
-                      <tr>
-                        <td><CheckCircle2 size={14} className="icon-check-green" /> Driver Proficiency (Signed)</td>
-                        <td>04/15/2022</td>
-                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
-                      </tr>
-                      <tr>
-                        <td><CheckCircle2 size={14} className="icon-check-green" /> Reasonable Suspicion Training</td>
-                        <td>02/10/2023</td>
-                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
-                      </tr>
-                      <tr>
-                        <td><CheckCircle2 size={14} className="icon-check-green" /> Managerial DOT Certificate</td>
-                        <td>01/20/2023</td>
-                        <td><button className="link-action-sm" onClick={() => setShowSendAgreementModal(true)}>View/Edit</button></td>
-                      </tr>
-                    </>
-                  )
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: 'center', color: '#64748B', padding: '1.5rem 0.5rem' }}>
+                      No documents or agreements on file. Click 'Send Agreement' to send one.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>

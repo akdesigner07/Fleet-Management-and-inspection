@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  ArrowLeft, 
-  UploadCloud, 
-  FileText, 
-  Download, 
-  Trash2, 
-  Edit2, 
-  Eye, 
-  CheckCircle2, 
+import {
+  ArrowLeft,
+  UploadCloud,
+  FileText,
+  Download,
+  Trash2,
+  Edit2,
+  Eye,
+  CheckCircle2,
   AlertCircle,
   ShieldAlert
 } from 'lucide-react';
@@ -131,7 +131,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
     const now = new Date();
     const timeStr = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const isImg = file.type.startsWith('image/');
-    
+
     const formData = new FormData();
     formData.append('files', file);
 
@@ -246,7 +246,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
 
   return (
     <div className="mvr-logs-page-container animate-fade-in">
-      
+
       {/* Header & Navigation */}
       <div className="mvr-page-header-row">
         <div className="breadcrumbs-nav-mvr">
@@ -280,15 +280,16 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
 
         <form onSubmit={handleSubmit} className="mvr-main-form">
           <div className="mvr-form-grid-3">
-            
+
             <div className="form-group">
               <label className="form-label">MVR Check Type *</label>
-              <select 
+              <select
                 className="form-control"
                 value={mvrType}
                 onChange={(e) => setMvrType(e.target.value)}
                 required
               >
+                <option value="mvr_cal_notice">MVR/Via Cal Pull-Notice</option>
                 <option value="Annual MVR Check">Annual MVR Check</option>
                 <option value="Pre-Employment MVR Check">Pre-Employment MVR Check</option>
                 <option value="Initial MVR Check">Initial MVR Check</option>
@@ -298,7 +299,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
 
             <div className="form-group">
               <label className="form-label">MVR Date *</label>
-              <input 
+              <input
                 type="date"
                 className="form-control"
                 value={mvrDate}
@@ -309,7 +310,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
 
             <div className="form-group">
               <label className="form-label">Expiration Date *</label>
-              <input 
+              <input
                 type="date"
                 className="form-control"
                 value={expirationDate}
@@ -321,10 +322,10 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
           </div>
 
           <div className="mvr-form-grid-3" style={{ marginTop: '1rem' }}>
-            
+
             <div className="form-group">
               <label className="form-label">License State *</label>
-              <input 
+              <input
                 type="text"
                 className="form-control"
                 placeholder="e.g. CA"
@@ -337,7 +338,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
 
             <div className="form-group">
               <label className="form-label">Violations Count</label>
-              <input 
+              <input
                 type="number"
                 className="form-control"
                 min="0"
@@ -348,7 +349,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
 
             <div className="form-group">
               <label className="form-label">Accidents Count</label>
-              <input 
+              <input
                 type="number"
                 className="form-control"
                 min="0"
@@ -362,7 +363,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
           <div className="mvr-form-row-notes" style={{ marginTop: '1rem' }}>
             <div className="form-group notes-group">
               <label className="form-label">Notes</label>
-              <textarea 
+              <textarea
                 className="form-control mvr-textarea"
                 rows={3}
                 placeholder="Enter MVR review notes, infractions details, or DMV report summary..."
@@ -375,13 +376,13 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
           {/* Upload Document Section */}
           <div className="form-group upload-document-group" style={{ marginTop: '1.5rem' }}>
             <label className="form-label">Upload MVR Document (PDF, Image) *</label>
-            <div 
+            <div
               className="mvr-dropzone-box"
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
             >
-              <input 
+              <input
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf"
@@ -407,19 +408,19 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
                   </div>
                 </div>
                 <div className="file-actions-right">
-                  <a 
-                    href={getFileUrl(uploadedFile.previewUrl)} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="file-btn" 
+                  <a
+                    href={getFileUrl(uploadedFile.previewUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="file-btn"
                     title="View Document"
                   >
                     <Eye size={16} />
                   </a>
-                  <a 
-                    href={getFileUrl(uploadedFile.previewUrl)} 
-                    download={uploadedFile.name} 
-                    className="file-btn" 
+                  <a
+                    href={getFileUrl(uploadedFile.previewUrl)}
+                    download={uploadedFile.name}
+                    className="file-btn"
                     title="Download Document"
                   >
                     <Download size={16} />
@@ -486,10 +487,10 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
                     </td>
                     <td>
                       {rec.uploadedFile ? (
-                        <a 
-                          href={getFileUrl(rec.uploadedFile.previewUrl)} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
+                        <a
+                          href={getFileUrl(rec.uploadedFile.previewUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="view-doc-link"
                         >
                           View
@@ -500,8 +501,8 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
                     <td>{formatDateForDisplay(rec.created_at)}</td>
                     <td>
                       <div className="actions-btn-group">
-                        <button 
-                          className="action-btn btn-edit-mvr" 
+                        <button
+                          className="action-btn btn-edit-mvr"
                           onClick={() => {
                             onSave(null, rec); // Opens it in edit mode in the form above
                           }}
@@ -509,8 +510,8 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
                         >
                           <Edit2 size={14} />
                         </button>
-                        <button 
-                          className="action-btn btn-delete-mvr" 
+                        <button
+                          className="action-btn btn-delete-mvr"
                           onClick={() => {
                             if (window.confirm('Are you sure you want to delete this MVR record?')) {
                               onDelete(rec.id);
@@ -536,25 +537,25 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
               Showing {indexOfFirstRecord + 1} to {Math.min(indexOfLastRecord, mvrRecords.length)} of {mvrRecords.length} records
             </span>
             <div className="pagination-buttons">
-              <button 
-                className="btn-page" 
-                disabled={currentPage === 1} 
+              <button
+                className="btn-page"
+                disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => prev - 1)}
               >
                 &lsaquo;
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-                <button 
-                  key={pNum} 
+                <button
+                  key={pNum}
                   className={`btn-page ${currentPage === pNum ? 'page-active' : ''}`}
                   onClick={() => setCurrentPage(pNum)}
                 >
                   {pNum}
                 </button>
               ))}
-              <button 
-                className="btn-page" 
-                disabled={currentPage === totalPages} 
+              <button
+                className="btn-page"
+                disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(prev => prev + 1)}
               >
                 &rsaquo;

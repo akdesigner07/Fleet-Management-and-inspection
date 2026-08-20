@@ -507,6 +507,18 @@ body.light-theme ::-webkit-scrollbar-track {
     grid-template-columns: 1fr !important;
     gap: 1rem !important;
   }
+
+
+
+
+  .form-page-card .form-label {
+    font-size: 0.65rem;
+  }
+
+  .form-page-card .form-control {
+    font-size: 0.65rem;
+    padding: 0.5rem;
+  }
 }
 
 .modal-actions {

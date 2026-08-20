@@ -214,6 +214,25 @@ const getDriverById = async (req, res) => {
     );
     const compliance = compRows[0] || null;
 
+    // Check latest clearinghouse query to ensure accurate clean/violation status
+    if (compliance) {
+      const [latestChRows] = await db.query(
+        'SELECT * FROM volant_clearinghouse_queries WHERE driver_id = ? ORDER BY id DESC LIMIT 1',
+        [id]
+      );
+      if (latestChRows.length > 0) {
+        const ch = latestChRows[0];
+        const issues = ch.selected_issues ? (typeof ch.selected_issues === 'string' ? JSON.parse(ch.selected_issues) : ch.selected_issues) : [];
+        const hasViolations = checkHasClearinghouseViolations(issues);
+        const accurateStatus = hasViolations ? 'Violations Found' : 'No Violations Found';
+        if (compliance.clearinghouse_result !== accurateStatus) {
+          compliance.clearinghouse_result = accurateStatus;
+          db.query('UPDATE driver_compliance SET clearinghouse_result = ? WHERE driver_id = ?', [accurateStatus, id]).catch(() => {});
+          db.query('UPDATE volant_clearinghouse_queries SET result_status = ? WHERE id = ?', [accurateStatus, ch.id]).catch(() => {});
+        }
+      }
+    }
+
     // Get latest medical certificate details
     const [medRows] = await db.query(
       'SELECT * FROM driver_medical WHERE driver_id = ? ORDER BY id DESC LIMIT 1',
@@ -752,6 +771,26 @@ const parseDbDate = (dStr) => {
   return null;
 };
 
+const isCleanClearinghouseIssue = (k) => {
+  if (!k) return false;
+  const str = String(k).trim().toLowerCase();
+  return (
+    str === 'negative' ||
+    str === 'negative_rtw' ||
+    str === 'negative return-to-duty test' ||
+    str === 'no violations found' ||
+    str === 'compliant' ||
+    str === 'clean' ||
+    str.includes('negative')
+  );
+};
+
+const checkHasClearinghouseViolations = (issues) => {
+  if (!issues || !Array.isArray(issues) || issues.length === 0) return false;
+  const violationIssues = issues.filter(k => !isCleanClearinghouseIssue(k));
+  return violationIssues.length > 0;
+};
+
 const getClearinghouseQueries = async (req, res) => {
   const { id } = req.params;
   try {
@@ -762,25 +801,32 @@ const getClearinghouseQueries = async (req, res) => {
       [id]
     );
 
-    const formatted = rows.map(r => ({
-      id: r.id,
-      driver_id: r.driver_id,
-      type: r.query_type,
-      queryType: r.query_type,
-      entryDate: r.query_entry_date ? new Date(r.query_entry_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-',
-      expDate: r.query_exp_date ? new Date(r.query_exp_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-',
-      result: r.result_status || 'No Violations Found',
-      statusClass: r.result_status === 'Violations Found' ? 'text-tag-red' : 'text-tag-green',
-      queryNotes: r.query_notes,
-      additionalInfo: r.additional_info,
-      selectedIssues: r.selected_issues ? (typeof r.selected_issues === 'string' ? JSON.parse(r.selected_issues) : r.selected_issues) : [],
-      uploadedFile: r.uploaded_file_name ? {
-        name: r.uploaded_file_name,
-        size: r.uploaded_file_size || '245 KB',
-        timestamp: r.uploaded_timestamp || '',
-        previewUrl: r.uploaded_file_path || '#'
-      } : null
-    }));
+    const formatted = rows.map(r => {
+      const issues = r.selected_issues ? (typeof r.selected_issues === 'string' ? JSON.parse(r.selected_issues) : r.selected_issues) : [];
+      const hasViolations = checkHasClearinghouseViolations(issues);
+      const isViolations = (r.result_status === 'Violations Found') ? hasViolations : false;
+      const displayResult = isViolations ? 'Violations Found' : 'No Violations Found';
+
+      return {
+        id: r.id,
+        driver_id: r.driver_id,
+        type: r.query_type,
+        queryType: r.query_type,
+        entryDate: r.query_entry_date ? new Date(r.query_entry_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-',
+        expDate: r.query_exp_date ? new Date(r.query_exp_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '-',
+        result: displayResult,
+        statusClass: isViolations ? 'text-tag-red' : 'text-tag-green',
+        queryNotes: r.query_notes,
+        additionalInfo: r.additional_info,
+        selectedIssues: issues,
+        uploadedFile: r.uploaded_file_name ? {
+          name: r.uploaded_file_name,
+          size: r.uploaded_file_size || '245 KB',
+          timestamp: r.uploaded_timestamp || '',
+          previewUrl: r.uploaded_file_path || '#'
+        } : null
+      };
+    });
 
     return res.json({ status: 'success', data: formatted });
   } catch (error) {
@@ -798,7 +844,8 @@ const createClearinghouseQuery = async (req, res) => {
   try {
     const entryDateVal = parseDbDate(queryEntryDate);
     const expDateVal = parseDbDate(queryExpDate);
-    const resultStatus = (selectedIssues && selectedIssues.length > 0) ? 'Violations Found' : 'No Violations Found';
+    const hasViolations = checkHasClearinghouseViolations(selectedIssues);
+    const resultStatus = hasViolations ? 'Violations Found' : 'No Violations Found';
     const issuesJson = selectedIssues ? JSON.stringify(selectedIssues) : JSON.stringify([]);
     const fileName = uploadedFile ? uploadedFile.name : null;
     const fileSize = uploadedFile ? uploadedFile.size : null;
@@ -845,7 +892,8 @@ const updateClearinghouseQuery = async (req, res) => {
   try {
     const entryDateVal = parseDbDate(queryEntryDate);
     const expDateVal = parseDbDate(queryExpDate);
-    const resultStatus = (selectedIssues && selectedIssues.length > 0) ? 'Violations Found' : 'No Violations Found';
+    const hasViolations = checkHasClearinghouseViolations(selectedIssues);
+    const resultStatus = hasViolations ? 'Violations Found' : 'No Violations Found';
     const issuesJson = selectedIssues ? JSON.stringify(selectedIssues) : JSON.stringify([]);
     const fileName = uploadedFile ? uploadedFile.name : null;
     const fileSize = uploadedFile ? uploadedFile.size : null;
@@ -863,6 +911,16 @@ const updateClearinghouseQuery = async (req, res) => {
         resultStatus, query_id, id
       ]
     );
+
+    // Also sync to driver_compliance
+    if (entryDateVal) {
+      await db.query(
+        `UPDATE driver_compliance 
+         SET clearinghouse_query_date = ?, clearinghouse_query_expires = ?, clearinghouse_result = ?
+         WHERE driver_id = ?`,
+        [entryDateVal, expDateVal, resultStatus, id]
+      );
+    }
 
     return res.json({ status: 'success', message: 'Clearinghouse query updated' });
   } catch (error) {

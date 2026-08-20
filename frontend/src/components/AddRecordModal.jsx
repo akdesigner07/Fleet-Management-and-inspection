@@ -239,9 +239,22 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
   };
 
   const toggleIssue = (issueKey) => {
-    setSelectedIssues(prev =>
-      prev.includes(issueKey) ? prev.filter(k => k !== issueKey) : [...prev, issueKey]
-    );
+    setSelectedIssues(prev => {
+      const exists = prev.includes(issueKey);
+      if (exists) {
+        return prev.filter(k => k !== issueKey);
+      }
+      // If selecting 'negative', clear violation issues
+      if (issueKey === 'negative') {
+        return ['negative'];
+      }
+      // If selecting 'negative_rtw', clear violation issues
+      if (issueKey === 'negative_rtw') {
+        return ['negative_rtw'];
+      }
+      // If selecting a violation issue, clear 'negative' and 'negative_rtw'
+      return [...prev.filter(k => k !== 'negative' && k !== 'negative_rtw'), issueKey];
+    });
   };
 
   const handleSubmit = (e) => {
