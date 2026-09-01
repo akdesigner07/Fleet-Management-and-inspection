@@ -124,6 +124,11 @@ const Sidebar = ({ isOpen, onClose }) => {
           <span>Reports</span>
         </NavLink>
 
+        <NavLink to="/consortium-requests" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <ShieldCheck size={18} style={{ color: '#60a5fa' }} />
+          <span>Consortium Requests</span>
+        </NavLink>
+
         {![786, 787, 788, 789].includes(user.group_id) && (
           <NavLink to="/sharing" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Share2 size={18} />

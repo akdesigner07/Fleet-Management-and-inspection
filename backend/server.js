@@ -17,6 +17,15 @@ const reportController = require('./controllers/reportController');
 
 // Middleware
 const { authenticateToken, authorizeOwnerContext } = require('./middleware/auth');
+const { authenticateConsortiumToken } = require('./middleware/consortiumAuth');
+
+// Consortium & Request Management Controllers
+const consortiumAuthController = require('./controllers/consortiumAuthController');
+const consortiumDashboardController = require('./controllers/consortiumDashboardController');
+const consortiumRequestController = require('./controllers/consortiumRequestController');
+const consortiumCompanyController = require('./controllers/consortiumCompanyController');
+const consortiumDriverController = require('./controllers/consortiumDriverController');
+const companyConsortiumController = require('./controllers/companyConsortiumController');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -74,14 +83,15 @@ const lubeDir = path.join(uploadsDir, 'lube');
 const repairDir = path.join(uploadsDir, 'repair');
 const mecDir = path.join(uploadsDir, 'mec');
 const mvrDir = path.join(uploadsDir, 'mvr');
+const docDir = path.join(uploadsDir, 'documents');
 
-[uploadsDir, signatureDir, lubeDir, repairDir, mecDir, mvrDir].forEach(dir => {
+[uploadsDir, signatureDir, lubeDir, repairDir, mecDir, mvrDir, docDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 });
 
-// Configure Multer storage for lube/repair/mec file uploads
+// Configure Multer storage for lube/repair/mec/mvr file uploads
 const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const type = req.params.type; // lube or repair or mec or mvr
@@ -104,6 +114,22 @@ const fileStorage = multer.diskStorage({
 const upload = multer({
   storage: fileStorage,
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
+// Multer storage for Consortium / Company Request Documents
+const docStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, docDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const docUpload = multer({
+  storage: docStorage,
+  limits: { fileSize: 25 * 1024 * 1024 } // 25MB
 });
 
 // Serve uploaded assets statically
@@ -494,6 +520,111 @@ app.put('/api/notifications/:id/read', authenticateToken, authorizeOwnerContext,
 
 // 9. Driver compliance & agreements
 app.use('/api', require('./routes/driverRoutes'));
+
+// ==========================================
+// 10. CONSORTIUM PANEL ROUTES (/api/consortium)
+// ==========================================
+
+// Consortium Auth
+app.post('/api/consortium/auth/login', consortiumAuthController.login);
+app.get('/api/consortium/auth/me', authenticateConsortiumToken, consortiumAuthController.getMe);
+app.put('/api/consortium/auth/profile', authenticateConsortiumToken, consortiumAuthController.updateProfile);
+app.put('/api/consortium/auth/change-password', authenticateConsortiumToken, consortiumAuthController.changePassword);
+
+// Consortium Dashboard
+app.get('/api/consortium/dashboard/summary', authenticateConsortiumToken, consortiumDashboardController.getDashboardData);
+
+// Consortium Central Requests
+app.get('/api/consortium/requests', authenticateConsortiumToken, consortiumRequestController.getRequests);
+app.get('/api/consortium/requests/:id', authenticateConsortiumToken, consortiumRequestController.getRequestById);
+app.post('/api/consortium/requests', authenticateConsortiumToken, consortiumRequestController.createRequest);
+app.put('/api/consortium/requests/:id', authenticateConsortiumToken, consortiumRequestController.updateRequest);
+app.put('/api/consortium/requests/:id/status', authenticateConsortiumToken, consortiumRequestController.updateRequestStatus);
+app.post('/api/consortium/requests/:id/comments', authenticateConsortiumToken, consortiumRequestController.addComment);
+app.post('/api/consortium/requests/:id/documents', authenticateConsortiumToken, docUpload.single('file'), consortiumRequestController.uploadDocument);
+app.post('/api/consortium/requests/:id/execute-clearinghouse', authenticateConsortiumToken, consortiumRequestController.executeClearinghouseQuery);
+
+// Consortium Companies & Drivers
+app.get('/api/consortium/companies', authenticateConsortiumToken, consortiumCompanyController.getCompanies);
+app.get('/api/consortium/companies/:id/drivers', authenticateConsortiumToken, consortiumCompanyController.getCompanyDrivers);
+app.get('/api/consortium/drivers', authenticateConsortiumToken, consortiumDriverController.getDrivers);
+app.get('/api/consortium/drivers/:id/records', authenticateConsortiumToken, consortiumDriverController.getDriverRecords);
+
+// Consortium Driver Compliance Records (Drug Tests & Clearinghouse Queries)
+app.post('/api/consortium/drivers/:id/drug-records', authenticateConsortiumToken, consortiumDriverController.createDriverDrugRecord);
+app.put('/api/consortium/drivers/:id/drug-records/:record_id', authenticateConsortiumToken, consortiumDriverController.updateDriverDrugRecord);
+app.delete('/api/consortium/drivers/:id/drug-records/:record_id', authenticateConsortiumToken, consortiumDriverController.deleteDriverDrugRecord);
+
+app.post('/api/consortium/drivers/:id/clearinghouse-queries', authenticateConsortiumToken, consortiumDriverController.createDriverClearinghouseQuery);
+app.put('/api/consortium/drivers/:id/clearinghouse-queries/:query_id', authenticateConsortiumToken, consortiumDriverController.updateDriverClearinghouseQuery);
+app.delete('/api/consortium/drivers/:id/clearinghouse-queries/:query_id', authenticateConsortiumToken, consortiumDriverController.deleteDriverClearinghouseQuery);
+
+// Consortium File Upload
+app.post('/api/consortium/upload/:type', authenticateConsortiumToken, upload.array('files', 10), (req, res) => {
+  try {
+    const filenames = req.files.map(f => f.filename);
+    return res.json({ status: 'success', filenames });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
+// ==========================================
+// 11. COMPANY CONSORTIUM REQUESTS (/api/company/consortium-requests)
+// ==========================================
+app.get('/api/company/consortium-requests', authenticateToken, authorizeOwnerContext, companyConsortiumController.getCompanyRequests);
+app.get('/api/company/consortium-requests/:id', authenticateToken, authorizeOwnerContext, companyConsortiumController.getCompanyRequestDetail);
+app.put('/api/company/consortium-requests/:id/status', authenticateToken, authorizeOwnerContext, companyConsortiumController.updateCompanyStatus);
+app.post('/api/company/consortium-requests/:id/complete', authenticateToken, authorizeOwnerContext, companyConsortiumController.completeCompanyRequest);
+app.post('/api/company/consortium-requests/:id/documents', authenticateToken, authorizeOwnerContext, docUpload.single('file'), companyConsortiumController.uploadCompanyDocument);
+app.post('/api/company/consortium-requests/:id/comments', authenticateToken, authorizeOwnerContext, companyConsortiumController.addCompanyComment);
+
+// Company Consortium Users Management
+app.get('/api/company/consortium-users', authenticateToken, authorizeOwnerContext, companyConsortiumController.getCompanyConsortiumUsers);
+app.post('/api/company/consortium-users', authenticateToken, authorizeOwnerContext, companyConsortiumController.createCompanyConsortiumUser);
+app.put('/api/company/consortium-users/:id', authenticateToken, authorizeOwnerContext, companyConsortiumController.updateCompanyConsortiumUser);
+app.put('/api/company/consortium-users/:id/status', authenticateToken, authorizeOwnerContext, companyConsortiumController.updateCompanyConsortiumUserStatus);
+app.delete('/api/company/consortium-users/:id', authenticateToken, authorizeOwnerContext, companyConsortiumController.deleteCompanyConsortiumUser);
+
+// ==========================================
+// 12. AUTOMATIC OVERDUE SYSTEM
+// ==========================================
+const processOverdueRequests = async () => {
+  try {
+    const [overdueRows] = await db.query(
+      `SELECT id, due_date, status 
+       FROM consortium_requests 
+       WHERE due_date IS NOT NULL 
+         AND due_date < CURDATE() 
+         AND status NOT IN ('completed', 'cancelled', 'rejected', 'overdue')`
+    );
+
+    for (const r of overdueRows) {
+      await db.query(
+        `UPDATE consortium_requests SET status = 'overdue', updated_at = NOW() WHERE id = ?`,
+        [r.id]
+      );
+      await db.query(
+        `INSERT INTO consortium_request_history (request_id, action, old_status, new_status, performed_by_type, comments)
+         VALUES (?, 'Marked Overdue', ?, 'overdue', 'system', 'Request passed due date without completion')`,
+        [r.id, r.status]
+      );
+    }
+    return overdueRows.length;
+  } catch (err) {
+    console.error('[OverdueScheduler] Error processing overdue requests:', err);
+    return 0;
+  }
+};
+
+// Periodic overdue check every 15 minutes
+setInterval(processOverdueRequests, 15 * 60 * 1000);
+
+// Manual trigger / webhook endpoint
+app.post('/api/consortium/cron/check-overdue', async (req, res) => {
+  const count = await processOverdueRequests();
+  return res.json({ status: 'success', message: `Processed ${count} overdue requests` });
+});
 
 // Start Server
 app.listen(PORT, () => {
