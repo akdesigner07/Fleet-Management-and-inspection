@@ -117,7 +117,6 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
       setUploadedFile(null);
     }
     setError('');
-    setSuccess('');
   }, [initialRecord, driver]);
 
   useEffect(() => {
@@ -125,6 +124,16 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [error]);
+
+  useEffect(() => {
+    if (success) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const timer = setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
 
   const handleFileProcess = async (file) => {
     if (!file) return;
@@ -188,24 +197,27 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
     e.preventDefault();
     if (!mvrDate) {
       setError('MVR Date is required.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     if (!expirationDate) {
       setError('Expiration Date is required.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     if (!state) {
       setError('License State is required.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     if (!uploadedFile) {
       setError('Please upload the MVR document.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     setSaving(true);
     setError('');
-    setSuccess('');
 
     const payload = {
       mvrType,
@@ -218,14 +230,16 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
       uploadedFile
     };
 
+    const isEdit = !!initialRecord;
     try {
       await onSave(payload);
-      setSuccess(`MVR record successfully ${initialRecord ? 'updated' : 'saved'}!`);
-      if (!initialRecord) {
+      setSuccess(`Driver MVR record successfully ${isEdit ? 'updated' : 'saved'}!`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (!isEdit) {
         setMvrType('Annual MVR Check');
         setMvrDate('');
         setExpirationDate('');
-        setState(driver.license_state || '');
+        setState(driver?.license_state || '');
         setViolations(0);
         setAccidents(0);
         setNotes('');
@@ -233,6 +247,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
       }
     } catch (err) {
       setError(err.message || 'Failed to save MVR record.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
     }
@@ -247,12 +262,35 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
   return (
     <div className="mvr-logs-page-container animate-fade-in">
 
+      {/* Floating Toast Notification (Always Visible on screen) */}
+      {success && (
+        <div className="floating-toast-alert toast-success">
+          <CheckCircle2 size={22} className="toast-icon" />
+          <div className="toast-content">
+            <strong>Success</strong>
+            <span>{success}</span>
+          </div>
+          <button type="button" className="toast-close-btn" onClick={() => setSuccess('')}>&times;</button>
+        </div>
+      )}
+
+      {error && (
+        <div className="floating-toast-alert toast-error">
+          <AlertCircle size={22} className="toast-icon" />
+          <div className="toast-content">
+            <strong>Error</strong>
+            <span>{error}</span>
+          </div>
+          <button type="button" className="toast-close-btn" onClick={() => setError('')}>&times;</button>
+        </div>
+      )}
+
       {/* Header & Navigation */}
       <div className="mvr-page-header-row">
         <div className="breadcrumbs-nav-mvr">
           <span className="breadcrumb-link-mvr" onClick={onClose} style={{ cursor: 'pointer' }}>Drivers</span>
           <span className="breadcrumb-separator-mvr">/</span>
-          <span className="breadcrumb-current-mvr">{driver?.id || 2}. {initialRecord ? 'Edit' : 'Add'} MVR Record</span>
+          <span className="breadcrumb-current-mvr"> {initialRecord ? 'Edit' : 'Add'} MVR Record</span>
         </div>
         <button className="btn-back-driver" onClick={onClose}>
           <ArrowLeft size={16} />
@@ -263,7 +301,7 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
       {/* Main Form Card */}
       <div className="card form-page-card mvr-form-card">
         <div className="mvr-card-header">
-          <h2>{driver?.id || 2}. {initialRecord ? 'Edit' : 'Add'} MVR Record</h2>
+          <h2> {initialRecord ? 'Edit' : 'Add'} MVR Record</h2>
         </div>
 
         {error && (
@@ -430,10 +468,37 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
             )}
           </div>
 
-          <div className="form-actions-row" style={{ marginTop: '1.5rem' }}>
-            <button type="submit" className="btn btn-primary btn-save-mvr-record" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Record'}
-            </button>
+          <div className="form-actions-row" style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              {success && (
+                <div className="inline-form-alert inline-success">
+                  <CheckCircle2 size={16} /> <span>{success}</span>
+                </div>
+              )}
+              {error && (
+                <div className="inline-form-alert inline-error">
+                  <AlertCircle size={16} /> <span>{error}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              {initialRecord && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    onSave(null, 'CLEAR_EDIT');
+                    setSuccess('');
+                    setError('');
+                  }}
+                >
+                  Cancel Edit
+                </button>
+              )}
+              <button type="submit" className="btn btn-primary btn-save-mvr-record" disabled={saving}>
+                {saving ? 'Saving...' : (initialRecord ? 'Update MVR Record' : 'Save Record')}
+              </button>
+            </div>
           </div>
 
         </form>
@@ -502,24 +567,29 @@ const MvrRecordView = ({ driver, initialRecord, mvrRecords = [], onClose, onSave
                     <td>
                       <div className="actions-btn-group">
                         <button
+                          type="button"
                           className="action-btn btn-edit-mvr"
                           onClick={() => {
                             onSave(null, rec); // Opens it in edit mode in the form above
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
-                          title="Edit"
+                          title="Edit MVR Record"
+                          aria-label="Edit"
                         >
-                          <Edit2 size={14} />
+                          <Edit2 size={15} color="#2563EB" />
                         </button>
                         <button
+                          type="button"
                           className="action-btn btn-delete-mvr"
                           onClick={() => {
                             if (window.confirm('Are you sure you want to delete this MVR record?')) {
                               onDelete(rec.id);
                             }
                           }}
-                          title="Delete"
+                          title="Delete MVR Record"
+                          aria-label="Delete"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} color="#EF4444" />
                         </button>
                       </div>
                     </td>

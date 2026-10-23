@@ -11,7 +11,9 @@ import {
   ArrowLeft,
   Landmark,
   AlertTriangle,
-  FileCheck
+  FileCheck,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAssetBaseUrl } from '../config/apiConfig';
@@ -105,6 +107,20 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
 
   const [uploadedFile, setUploadedFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  React.useEffect(() => {
+    if (error) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [error]);
+
+  React.useEffect(() => {
+    if (success) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [success]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -257,12 +273,33 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (recordType === 'mec') {
+      if (!mecForm.issueDate) {
+        setError('Issue Date is required.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      if (!mecForm.expirationDate) {
+        setError('Expiration Date is required.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    } else if (recordType === 'clearinghouse') {
+      if (!queryEntryDate) {
+        setError('Query Entry Date is required.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
+
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      onSave({
+    try {
+      await onSave({
         queryType,
         queryEntryDate,
         queryExpDate,
@@ -272,8 +309,17 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
         uploadedFile,
         ...mecForm
       });
-      onClose();
-    }, 500);
+      setSuccess(`${isClearinghouse ? 'Clearinghouse query' : 'Medical Examiner Certificate'} record ${isEditMode ? 'updated' : 'saved'} successfully!`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (err) {
+      setError(err.message || 'Failed to save record.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const driverName = driver ? `${driver.first_name} ${driver.last_name}` : 'Michael Anderson';
@@ -322,6 +368,18 @@ const AddRecordModal = ({ isOpen, onClose, driver, recordType, initialRecord, on
             <X size={20} />
           </button>
         </div>
+
+        {error && (
+          <div className="alert-error-banner" style={{ margin: '1rem 0' }}>
+            <AlertCircle size={16} /> <span>{error}</span>
+          </div>
+        )}
+
+        {success && (
+          <div className="alert-success-banner" style={{ margin: '1rem 0' }}>
+            <CheckCircle2 size={16} /> <span>{success}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="mec-modal-body">
 

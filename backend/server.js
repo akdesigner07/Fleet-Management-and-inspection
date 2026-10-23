@@ -18,6 +18,10 @@ const reportController = require('./controllers/reportController');
 // Middleware
 const { authenticateToken, authorizeOwnerContext } = require('./middleware/auth');
 const { authenticateConsortiumToken } = require('./middleware/consortiumAuth');
+const { authenticateDriverToken } = require('./middleware/driverAuth');
+
+// Driver Migration
+const { runDriverMigrations } = require('./config/driverMigration');
 
 // Consortium & Request Management Controllers
 const consortiumAuthController = require('./controllers/consortiumAuthController');
@@ -26,6 +30,7 @@ const consortiumRequestController = require('./controllers/consortiumRequestCont
 const consortiumCompanyController = require('./controllers/consortiumCompanyController');
 const consortiumDriverController = require('./controllers/consortiumDriverController');
 const companyConsortiumController = require('./controllers/companyConsortiumController');
+const driverPortalController = require('./controllers/driverPortalController');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,8 +53,9 @@ const initDatabase = async () => {
       )
     `);
     console.log("Database table 'driver_notification' is ready.");
+    await runDriverMigrations();
   } catch (err) {
-    console.error("Error creating 'driver_notification' table:", err);
+    console.error("Error initializing database tables:", err);
   }
 };
 initDatabase();
@@ -65,7 +71,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-owner-id');
-  
+
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -331,7 +337,7 @@ const syncNotifications = async (ownerId) => {
       if (!rawDate) return;
       const targetDate = new Date(rawDate);
       if (isNaN(targetDate.getTime())) return;
-      
+
       targetDate.setHours(0, 0, 0, 0);
       const diffTime = targetDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -625,6 +631,21 @@ app.post('/api/consortium/cron/check-overdue', async (req, res) => {
   const count = await processOverdueRequests();
   return res.json({ status: 'success', message: `Processed ${count} overdue requests` });
 });
+
+// ==========================================
+// 13. DEDICATED DRIVER PORTAL API ROUTES
+// ==========================================
+app.post('/api/driver-auth/login', driverPortalController.driverLogin);
+app.get('/api/driver-portal/profile', authenticateDriverToken, driverPortalController.getDriverProfile);
+app.get('/api/driver-portal/agreements', authenticateDriverToken, driverPortalController.getDriverAgreements);
+app.get('/api/driver-portal/agreements/:id', authenticateDriverToken, driverPortalController.getDriverAgreementById);
+app.get('/api/driver-portal/agreements/:id/download', authenticateDriverToken, driverPortalController.downloadDriverAgreement);
+app.get('/api/driver-portal/fleets', authenticateDriverToken, driverPortalController.getDriverFleets);
+app.get('/api/driver-portal/inspections', authenticateDriverToken, driverPortalController.getDriverInspections);
+app.get('/api/driver-portal/repairs', authenticateDriverToken, driverPortalController.getDriverRepairs);
+app.post('/api/driver-portal/repairs', authenticateDriverToken, driverPortalController.createDriverRepair);
+app.get('/api/driver-portal/lubes', authenticateDriverToken, driverPortalController.getDriverLubes);
+app.post('/api/driver-portal/lubes', authenticateDriverToken, driverPortalController.createDriverLube);
 
 // Start Server
 app.listen(PORT, () => {

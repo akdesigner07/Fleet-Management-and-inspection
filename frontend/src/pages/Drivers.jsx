@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   UserPlus, Search, ShieldAlert, CheckCircle, ChevronRight, User, Edit, Trash2,
-  Download, FileText, Plus, SlidersHorizontal, Eye, MoreVertical, ChevronLeft, ArrowUpDown, Shield, AlertTriangle, ShieldCheck
+  Download, FileText, Plus, SlidersHorizontal, Eye, MoreVertical, ChevronLeft, ArrowUpDown, Shield, AlertTriangle, ShieldCheck,
+  KeyRound, EyeOff
 } from 'lucide-react';
 import './Drivers.css';
 
@@ -197,6 +198,17 @@ const Drivers = () => {
     setSelectedDriverIds([]); // Clear selection when driver authority switcher updates
   }, [activeOwnerId]);
 
+  const [showPassword, setShowPassword] = useState(false);
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    let pass = 'Drv@';
+    for (let i = 0; i < 6; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setForm(prev => ({ ...prev, password: pass }));
+  };
+
   useEffect(() => {
     if (action === 'edit-driver' && editId && drivers.length > 0) {
       const d = drivers.find(drv => String(drv.id) === String(editId));
@@ -205,6 +217,8 @@ const Drivers = () => {
           first_name: d.first_name || '',
           last_name: d.last_name || '',
           driver_id_number: d.driver_id_number || '',
+          username: d.username || d.email || '',
+          password: '',
           email: d.email || '',
           phone_number: d.phone_number || '',
           license_number: d.license_number || '',
@@ -215,10 +229,13 @@ const Drivers = () => {
         });
       }
     } else if (action === 'add-driver') {
+      const initialPass = `Drv@${Math.floor(1000 + Math.random() * 9000)}`;
       setForm({
         first_name: '',
         last_name: '',
         driver_id_number: '',
+        username: '',
+        password: initialPass,
         email: '',
         phone_number: '',
         license_number: '',
@@ -232,6 +249,16 @@ const Drivers = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'phone_number') {
+      let val = value.replace(/[^\d+]/g, '');
+      if (val.includes('+')) {
+        const hasLeadingPlus = val.startsWith('+');
+        val = (hasLeadingPlus ? '+' : '') + val.replace(/\+/g, '');
+      }
+      val = val.slice(0, 12);
+      setForm(prev => ({ ...prev, [name]: val }));
+      return;
+    }
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -541,8 +568,80 @@ const Drivers = () => {
                   name="phone_number"
                   value={form.phone_number}
                   onChange={handleInputChange}
+                  maxLength={12}
                   required
                 />
+              </div>
+
+              {/* Driver Portal Login Credentials */}
+              <div style={{ gridColumn: '1 / -1', margin: '0.5rem 0', padding: '1rem', background: '#F8FAFC', borderRadius: '8px', border: '1.5px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: '#1E293B', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <KeyRound size={16} color="#2563EB" /> Driver Portal Account Credentials
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B', display: 'block', marginTop: '0.15rem' }}>
+                      Login credentials and driver portal URL will automatically be emailed to the driver's email address upon creation.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={generateRandomPassword}
+                    style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                  >
+                    Generate Password
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Username (Defaults to Email)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. john.doe"
+                      className="form-control"
+                      name="username"
+                      value={form.username || ''}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">
+                      Password {action === 'add-driver' ? '*' : '(Leave blank to keep existing)'}
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder={action === 'add-driver' ? 'Enter or generate password' : 'New password...'}
+                        className="form-control"
+                        name="password"
+                        value={form.password || ''}
+                        onChange={handleInputChange}
+                        style={{ paddingRight: '2.5rem' }}
+                        required={action === 'add-driver'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(prev => !prev)}
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748B',
+                          cursor: 'pointer',
+                          padding: '0.2rem'
+                        }}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="form-group">

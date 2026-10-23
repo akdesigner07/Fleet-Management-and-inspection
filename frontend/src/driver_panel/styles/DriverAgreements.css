@@ -1,0 +1,549 @@
+/* ========================================================
+   DRIVER PORTAL - SIGNED AGREEMENTS & DETAILS STYLES
+   ======================================================== */
+
+.driver-agreements-view {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* Header & Stats Banner */
+.agreements-header-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.agreements-header-title h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0 0 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.agreements-header-title p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748B;
+  max-width: 600px;
+  line-height: 1.4;
+}
+
+/* KPI Summary Cards */
+.agreements-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.agreements-kpi-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.agreements-kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kpi-blue {
+  background: #EFF6FF;
+  color: #2563EB;
+}
+
+.kpi-green {
+  background: #ECFDF5;
+  color: #059669;
+}
+
+.kpi-amber {
+  background: #FFFBEB;
+  color: #D97706;
+}
+
+.agreements-kpi-data .kpi-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0F172A;
+  line-height: 1.1;
+}
+
+.agreements-kpi-data .kpi-label {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: #64748B;
+  margin-top: 0.2rem;
+}
+
+/* Filters & Search Toolbar */
+.agreements-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.agreements-search-box {
+  position: relative;
+  min-width: 260px;
+  flex: 1;
+  max-width: 380px;
+}
+
+.agreements-search-box input {
+  width: 100%;
+  padding: 0.55rem 0.85rem 0.55rem 2.25rem;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #1E293B;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.agreements-search-box input:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.agreements-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94A3B8;
+  pointer-events: none;
+}
+
+.agreements-filter-tabs {
+  display: flex;
+  align-items: center;
+  background: #F1F5F9;
+  padding: 0.25rem;
+  border-radius: 8px;
+  gap: 0.25rem;
+}
+
+.filter-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-tab-btn:hover {
+  color: #1E293B;
+}
+
+.filter-tab-btn.active {
+  background: #FFFFFF;
+  color: #2563EB;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Table Enhancements */
+.agr-type-title {
+  font-weight: 700;
+  color: #0F172A;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.agr-meta-sub {
+  font-size: 0.75rem;
+  color: #64748B;
+  margin-top: 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.policy-chip {
+  background: #EFF6FF;
+  color: #2563EB;
+  border: 1px solid #BFDBFE;
+  padding: 0.15rem 0.45rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Detail Full Page Container */
+.agreement-detail-view {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.detail-top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.back-btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  padding: 0.45rem 0.95rem;
+  border-radius: 8px;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-btn-pill:hover {
+  background: #F8FAFC;
+  border-color: #94A3B8;
+  color: #0F172A;
+}
+
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* Detail Banner Card */
+.detail-banner-card {
+  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+  color: #FFFFFF;
+  border-radius: 14px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+  flex-wrap: wrap;
+}
+
+.banner-left h3 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0 0 0.4rem;
+  color: #FFFFFF;
+}
+
+.banner-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.825rem;
+  color: #CBD5E1;
+}
+
+.banner-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Detail Section Card */
+.detail-section-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.section-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.85rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.section-title-bar h4 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Driver Info 4 Grid */
+.detail-info-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.info-field-box {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.info-field-box .field-label {
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748B;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.25rem;
+}
+
+.info-field-box .field-value {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0F172A;
+  word-break: break-word;
+}
+
+/* Fine Print Clauses & Policies */
+.clauses-container-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.clause-card-item {
+  border: 1px solid #E2E8F0;
+  border-left: 4px solid #2563EB;
+  background: #FAFAFA;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.clause-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.clause-header h5 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.clause-description {
+  font-size: 0.8rem;
+  color: #64748B;
+  margin: 0 0 0.75rem;
+  font-style: italic;
+}
+
+.clause-body-text {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #334155;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 1rem;
+  white-space: pre-line;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* Two-column layout for Status & Signatures */
+.detail-two-col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .detail-two-col-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Audit / Transmission Info Rows */
+.audit-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.audit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #F1F5F9;
+  font-size: 0.825rem;
+}
+
+.audit-row:last-child {
+  border-bottom: none;
+}
+
+.audit-label {
+  color: #64748B;
+  font-weight: 500;
+}
+
+.audit-val {
+  color: #0F172A;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Electronic Signature Display Card */
+.signature-card-box {
+  background: #F8FAFC;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.signature-pad-container {
+  width: 100%;
+  max-width: 320px;
+  min-height: 110px;
+  background: #FFFFFF;
+  border: 1.5px dashed #94A3B8;
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+
+.signature-pad-container img {
+  max-width: 100%;
+  max-height: 90px;
+  object-fit: contain;
+}
+
+.signature-watermark {
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  font-size: 0.65rem;
+  color: #94A3B8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sig-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 0.2rem;
+}
+
+.sig-timestamp {
+  font-size: 0.75rem;
+  color: #64748B;
+}
+
+.sig-verified-pill {
+  margin-top: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.65rem;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #059669;
+}
+
+/* Signed Document Download Card */
+.signed-pdf-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F0FDF4;
+  border: 1.5px solid #BBF7D0;
+  border-radius: 10px;
+  padding: 1.25rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.pdf-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pdf-icon-wrap {
+  width: 48px;
+  height: 48px;
+  background: #DCFCE7;
+  color: #16A34A;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pdf-meta-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #166534;
+  margin-bottom: 0.2rem;
+}
+
+.pdf-meta-sub {
+  font-size: 0.75rem;
+  color: #15803D;
+}
+
+.pdf-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}

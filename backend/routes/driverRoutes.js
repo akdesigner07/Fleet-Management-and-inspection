@@ -39,6 +39,8 @@ router.post('/drivers-meta/clearinghouse-queries/:id', authenticateToken, driver
 
 router.get('/drivers-meta/fine-prints', authenticateToken, authorizeOwnerContext, driverController.getFinePrints);
 router.post('/drivers-meta/fine-prints', authenticateToken, authorizeOwnerContext, driverController.saveFinePrint);
+router.delete('/drivers-meta/fine-prints/:id', authenticateToken, authorizeOwnerContext, driverController.deleteFinePrint);
 router.post('/drivers-meta/agreements/send', authenticateToken, authorizeOwnerContext, driverController.sendAgreement);
+router.get('/drivers-meta/agreements/download/:id', driverController.downloadAgreement);
 
 module.exports = router;

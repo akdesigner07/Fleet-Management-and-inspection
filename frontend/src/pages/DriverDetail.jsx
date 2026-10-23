@@ -4,9 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Edit, AlertCircle, FileText, Send, User, Check, Plus,
   Smartphone, Mail, Calendar, CreditCard, ShieldAlert, Award, Activity,
-  Settings, Eye, Download, MoreVertical, Building2, FlaskConical, Heart,
+  Settings, Eye, EyeOff, KeyRound, Download, MoreVertical, Building2, FlaskConical, Heart,
   CheckCircle2, Zap, Bus, Wrench, Gauge, GraduationCap, ChevronRight,
-  AlertTriangle, Landmark, UserCheck, Contact, Truck, BadgeCheck
+  AlertTriangle, Landmark, UserCheck, Contact, Truck, BadgeCheck,
+  Edit2, Trash2
 } from 'lucide-react';
 import AddRecordModal from '../components/AddRecordModal';
 import DrugRecordView from '../components/DrugRecordView';
@@ -80,16 +81,46 @@ const DriverDetail = () => {
   const [viewingFinePrint, setViewingFinePrint] = useState(null);
   const [signingLink, setSigningLink] = useState('');
   const [showAllAlertsModal, setShowAllAlertsModal] = useState(false);
+  const [error, setError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
+
+  useEffect(() => {
+    if (actionSuccess) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const timer = setTimeout(() => {
+        setActionSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [actionSuccess]);
+
+  useEffect(() => {
+    if (error) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [error]);
 
   // Form states
   const [profileForm, setProfileForm] = useState({});
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [complianceForm, setComplianceForm] = useState({});
+
+  const generateRandomEditPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+    let pwd = '';
+    for (let i = 0; i < 10; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setProfileForm(prev => ({ ...prev, password: pwd }));
+    setShowEditPassword(true);
+  };
   const [agreementForm, setAgreementForm] = useState({
     agreement_type: 'Driver Proficiency Agreement',
     selected_fine_print_ids: [],
     send_method: 'email'
   });
   const [newFinePrint, setNewFinePrint] = useState({ title: '', description: '', text: '' });
+  const [editingFinePrintId, setEditingFinePrintId] = useState(null);
   const [activeLibTemplateId, setActiveLibTemplateId] = useState(null);
 
   // Sender drawing references
@@ -171,9 +202,6 @@ const DriverDetail = () => {
     setHasSenderDrawn(false);
   };
 
-  const [error, setError] = useState('');
-  const [actionSuccess, setActionSuccess] = useState('');
-
   // Fetch all clearinghouse records from volant_clearinghouse_queries table
   const fetchClearinghouseQueries = async () => {
     try {
@@ -189,8 +217,8 @@ const DriverDetail = () => {
     }
   };
 
-  const fetchDriverData = async () => {
-    setLoading(true);
+  const fetchDriverData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await apiRequest(`/api/drivers/${driver_id}`);
       const result = await res.json();
@@ -204,7 +232,7 @@ const DriverDetail = () => {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -271,7 +299,7 @@ const DriverDetail = () => {
       if (result.status === 'success') {
         setActionSuccess('Profile updated successfully!');
         setShowEditProfileModal(false);
-        fetchDriverData();
+        fetchDriverData(true);
       } else {
         setError(result.message);
       }
@@ -293,7 +321,7 @@ const DriverDetail = () => {
       if (result.status === 'success') {
         setActionSuccess('Compliance cards updated successfully!');
         setShowComplianceModal(false);
-        fetchDriverData();
+        fetchDriverData(true);
       } else {
         setError(result.message);
       }
@@ -338,22 +366,63 @@ const DriverDetail = () => {
   };
 
   const handleSaveNewFinePrint = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setError('');
+    if (!newFinePrint.title || !newFinePrint.text) {
+      setError('Title and Full Policy Text are required.');
+      return;
+    }
     try {
+      const payload = editingFinePrintId
+        ? { id: editingFinePrintId, ...newFinePrint }
+        : newFinePrint;
       const res = await apiRequest('/api/drivers-meta/fine-prints', {
         method: 'POST',
-        body: JSON.stringify(newFinePrint)
+        body: JSON.stringify(payload)
       });
       const result = await res.json();
       if (result.status === 'success') {
+        setActionSuccess(`Fine print template ${editingFinePrintId ? 'updated' : 'saved'} successfully!`);
         setNewFinePrint({ title: '', description: '', text: '' });
+        setEditingFinePrintId(null);
+        setShowAddFinePrint(false);
         fetchFinePrintTemplates();
       } else {
-        setError(result.message);
+        setError(result.message || 'Failed to save fine print template.');
       }
     } catch (err) {
-      setError('Connection error');
+      setError('Connection error. Failed to save fine print.');
+    }
+  };
+
+  const handleDeleteFinePrint = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this fine print template?')) return;
+    setError('');
+    try {
+      const res = await apiRequest(`/api/drivers-meta/fine-prints/${id}`, {
+        method: 'DELETE'
+      });
+      const result = await res.json();
+      if (result.status === 'success') {
+        setActionSuccess('Fine print template deleted successfully!');
+        if (editingFinePrintId === id) {
+          setEditingFinePrintId(null);
+          setNewFinePrint({ title: '', description: '', text: '' });
+          setShowAddFinePrint(false);
+        }
+        if (viewingFinePrint === id) {
+          setViewingFinePrint(null);
+        }
+        setAgreementForm(prev => ({
+          ...prev,
+          selected_fine_print_ids: prev.selected_fine_print_ids.filter(x => x !== id)
+        }));
+        fetchFinePrintTemplates();
+      } else {
+        setError(result.message || 'Failed to delete fine print.');
+      }
+    } catch (err) {
+      setError('Connection error. Failed to delete fine print.');
     }
   };
 
@@ -684,13 +753,11 @@ const DriverDetail = () => {
               if (!res.ok) {
                 const errData = await res.json().catch(() => ({}));
                 console.error('Save clearinghouse error:', errData.message || res.status);
-                setError('Failed to save record: ' + (errData.message || res.status));
-                return;
+                throw new Error(errData.message || 'Failed to save clearinghouse record');
               }
             } catch (e) {
               console.error('Network error saving clearinghouse record:', e);
-              setError('Network error saving record.');
-              return;
+              throw e;
             }
 
             // Refresh records from DB after save
@@ -727,19 +794,16 @@ const DriverDetail = () => {
               if (!res.ok) {
                 const errData = await res.json().catch(() => ({}));
                 console.error('Save MEC error:', errData.message || res.status);
-                setError('Failed to save medical certificate: ' + (errData.message || res.status));
-                return;
+                throw new Error(errData.message || 'Failed to save medical certificate');
               }
             } catch (e) {
               console.error('Network error saving MEC:', e);
-              setError('Network error saving medical certificate.');
-              return;
+              throw e;
             }
 
-            await fetchDriverData();
+            await fetchDriverData(true);
             setActionSuccess(`Medical Examiner Certificate ${selectedRecordToEdit ? 'updated' : 'added'} successfully!`);
           }
-          setShowAddRecordModal(false);
           setSelectedRecordToEdit(null);
           setSelectedRecordIndex(null);
         }}
@@ -759,6 +823,10 @@ const DriverDetail = () => {
           setSelectedMvrRecordToEdit(null);
         }}
         onSave={async (savedPayload, editRecord) => {
+          if (editRecord === 'CLEAR_EDIT') {
+            setSelectedMvrRecordToEdit(null);
+            return;
+          }
           if (editRecord) {
             setSelectedMvrRecordToEdit(editRecord);
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -785,7 +853,7 @@ const DriverDetail = () => {
             }
             setActionSuccess('MVR record added successfully!');
           }
-          await fetchDriverData();
+          await fetchDriverData(true);
           setSelectedMvrRecordToEdit(null);
         }}
         onDelete={async (recordId) => {
@@ -794,7 +862,7 @@ const DriverDetail = () => {
           });
           const result = await res.json();
           if (result.status === 'success') {
-            await fetchDriverData();
+            await fetchDriverData(true);
             if (selectedMvrRecordToEdit && selectedMvrRecordToEdit.id === recordId) {
               setSelectedMvrRecordToEdit(null);
             }
@@ -818,6 +886,18 @@ const DriverDetail = () => {
           </button>
           <h2>Update Compliance Status Cards</h2>
         </div>
+
+        {error && (
+          <div className="alert-error-banner" style={{ marginBottom: '1rem' }}>
+            <AlertCircle size={16} /> <span>{error}</span>
+          </div>
+        )}
+
+        {actionSuccess && (
+          <div className="alert-success-banner" style={{ marginBottom: '1rem' }}>
+            <CheckCircle2 size={16} /> <span>{actionSuccess}</span>
+          </div>
+        )}
 
         <div className="card form-page-card">
           <form onSubmit={handleComplianceSubmit}>
@@ -1274,6 +1354,10 @@ const DriverDetail = () => {
           setSelectedDrugRecordToEdit(null);
         }}
         onSave={async (savedForm, editRecord = null) => {
+          if (editRecord === 'CLEAR_EDIT') {
+            setSelectedDrugRecordToEdit(null);
+            return;
+          }
           if (editRecord) {
             setSelectedDrugRecordToEdit(editRecord);
             return;
@@ -1290,11 +1374,11 @@ const DriverDetail = () => {
             body: JSON.stringify(savedForm)
           });
           const resData = await res.json();
-          if (!res.ok) {
+          if (!res.ok || resData.status !== 'success') {
             throw new Error(resData.message || 'Failed to save drug test record.');
           }
 
-          await fetchDriverData();
+          await fetchDriverData(true);
           setActionSuccess(`Drug test record successfully ${isEdit ? 'updated' : 'saved'}!`);
           if (isEdit) {
             setSelectedDrugRecordToEdit(null);
@@ -1309,7 +1393,7 @@ const DriverDetail = () => {
             alert('Failed to delete record: ' + (resData.message || 'Unknown error'));
             return;
           }
-          await fetchDriverData();
+          await fetchDriverData(true);
           setActionSuccess('Drug test record deleted successfully!');
         }}
       />
@@ -1403,7 +1487,7 @@ const DriverDetail = () => {
                 <div style={{ padding: '1.5rem', textAlign: 'center', color: '#94A3B8', fontSize: '0.825rem' }}>No fine print templates. Add one below.</div>
               ) : (
                 finePrints.map((fp, idx) => (
-                  <div key={fp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderBottom: idx < finePrints.length - 1 ? '1px solid #F1F5F9' : 'none', background: agreementForm.selected_fine_print_ids.includes(fp.id) ? '#F0F9FF' : 'white' }}>
+                  <div key={fp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderBottom: idx < finePrints.length - 1 ? '1px solid #F1F5F9' : 'none', background: agreementForm.selected_fine_print_ids.includes(fp.id) ? '#F0F9FF' : 'white', gap: '0.75rem' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', flex: 1, margin: 0 }}>
                       <input
                         type="checkbox"
@@ -1413,13 +1497,76 @@ const DriverDetail = () => {
                       />
                       <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#1E293B' }}>{fp.title}</span>
                     </label>
-                    <button
-                      type="button"
-                      style={{ color: '#2563EB', fontSize: '0.8rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem 0.5rem' }}
-                      onClick={() => setViewingFinePrint(viewingFinePrint === fp.id ? null : fp.id)}
-                    >
-                      View
-                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingFinePrintId(fp.id);
+                          setNewFinePrint({
+                            title: fp.title || '',
+                            description: fp.description || '',
+                            text: fp.text || ''
+                          });
+                          setShowAddFinePrint(true);
+                        }}
+                        title="Edit Fine Print"
+                        style={{
+                          background: '#EFF6FF',
+                          border: '1px solid #BFDBFE',
+                          borderRadius: '5px',
+                          color: '#2563EB',
+                          cursor: 'pointer',
+                          padding: '0.25rem 0.5rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          fontSize: '0.75rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        <Edit2 size={13} color="#2563EB" />
+                        <span>Edit</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFinePrint(fp.id)}
+                        title="Delete Fine Print"
+                        style={{
+                          background: '#FEF2F2',
+                          border: '1px solid #FCA5A5',
+                          borderRadius: '5px',
+                          color: '#EF4444',
+                          cursor: 'pointer',
+                          padding: '0.25rem 0.5rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          fontSize: '0.75rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        <Trash2 size={13} color="#EF4444" />
+                        <span>Delete</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        style={{
+                          color: '#2563EB',
+                          fontSize: '0.8rem',
+                          fontWeight: '600',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0.2rem 0.4rem'
+                        }}
+                        onClick={() => setViewingFinePrint(viewingFinePrint === fp.id ? null : fp.id)}
+                      >
+                        {viewingFinePrint === fp.id ? 'Hide' : 'View'}
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -1432,14 +1579,20 @@ const DriverDetail = () => {
                 </div>
               )}
 
-              {/* Add New Fine Print */}
+              {/* Add / Edit Fine Print */}
               <div style={{ borderTop: '1px solid #E2E8F0' }}>
                 <button
                   type="button"
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', cursor: 'pointer', color: '#2563EB', fontWeight: '600', fontSize: '0.825rem' }}
-                  onClick={() => setShowAddFinePrint(prev => !prev)}
+                  onClick={() => {
+                    if (showAddFinePrint && editingFinePrintId) {
+                      setEditingFinePrintId(null);
+                      setNewFinePrint({ title: '', description: '', text: '' });
+                    }
+                    setShowAddFinePrint(prev => !prev);
+                  }}
                 >
-                  <span>Add New Fine Print</span>
+                  <span>{editingFinePrintId ? '✏️ Edit Fine Print Template' : 'Add New Fine Print'}</span>
                   <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>{showAddFinePrint ? '−' : '+'}</span>
                 </button>
                 {showAddFinePrint && (
@@ -1458,7 +1611,25 @@ const DriverDetail = () => {
                       <label className="form-label">Full Policy Text *</label>
                       <textarea className="form-control" rows={4} value={newFinePrint.text} onChange={(e) => setNewFinePrint({ ...newFinePrint, text: e.target.value })} placeholder="Enter the full policy clause text here..." style={{ resize: 'vertical' }} />
                     </div>
-                    <button type="button" className="btn btn-primary" style={{ fontSize: '0.8rem' }} onClick={handleSaveNewFinePrint}>Save Fine Print</button>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <button type="button" className="btn btn-primary" style={{ fontSize: '0.8rem' }} onClick={handleSaveNewFinePrint}>
+                        {editingFinePrintId ? 'Update Fine Print' : 'Save Fine Print'}
+                      </button>
+                      {editingFinePrintId && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.8rem' }}
+                          onClick={() => {
+                            setEditingFinePrintId(null);
+                            setNewFinePrint({ title: '', description: '', text: '' });
+                            setShowAddFinePrint(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1672,6 +1843,19 @@ const DriverDetail = () => {
           </button>
           <h2>Edit Driver Profile</h2>
         </div>
+
+        {error && (
+          <div className="alert-error-banner" style={{ marginBottom: '1rem' }}>
+            <AlertCircle size={16} /> <span>{error}</span>
+          </div>
+        )}
+
+        {actionSuccess && (
+          <div className="alert-success-banner" style={{ marginBottom: '1rem' }}>
+            <CheckCircle2 size={16} /> <span>{actionSuccess}</span>
+          </div>
+        )}
+
         <div className="card form-page-card">
           <form onSubmit={handleProfileSubmit}>
             <div className="modal-form-grid">
@@ -1716,14 +1900,92 @@ const DriverDetail = () => {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Phone Number</label>
+                <label className="form-label">Phone Number (with country code)</label>
                 <input
                   type="text"
+                  placeholder="e.g. +15551234567"
                   className="form-control"
+                  maxLength={12}
                   value={profileForm.phone_number || ''}
-                  onChange={(e) => setProfileForm({ ...profileForm, phone_number: e.target.value })}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[^\d+]/g, '');
+                    if (val.includes('+')) {
+                      const hasLeadingPlus = val.startsWith('+');
+                      val = (hasLeadingPlus ? '+' : '') + val.replace(/\+/g, '');
+                    }
+                    val = val.slice(0, 12);
+                    setProfileForm({ ...profileForm, phone_number: val });
+                  }}
                   required
                 />
+              </div>
+
+              {/* Driver Portal Login Credentials & Change Password */}
+              <div style={{ gridColumn: '1 / -1', margin: '0.5rem 0', padding: '1rem', background: '#F8FAFC', borderRadius: '8px', border: '1.5px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: '#1E293B', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <KeyRound size={16} color="#2563EB" /> Driver Portal Account & Password
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B', display: 'block', marginTop: '0.15rem' }}>
+                      Update driver's portal username or change password. If a new password is set, an automated email notification will be sent to the driver.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={generateRandomEditPassword}
+                    style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                  >
+                    Generate New Password
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Portal Username</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. john.doe"
+                      className="form-control"
+                      value={profileForm.username || ''}
+                      onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">
+                      Change Password (Leave blank to keep current)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showEditPassword ? 'text' : 'password'}
+                        placeholder="Enter new password to change..."
+                        className="form-control"
+                        value={profileForm.password || ''}
+                        onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
+                        style={{ paddingRight: '2.5rem' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEditPassword(prev => !prev)}
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748B',
+                          cursor: 'pointer',
+                          padding: '0.2rem'
+                        }}
+                      >
+                        {showEditPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">License Number</label>
@@ -2643,17 +2905,6 @@ const DriverDetail = () => {
         </div>
 
       </div>
-
-      <AddRecordModal
-        isOpen={showAddRecordModal}
-        onClose={() => setShowAddRecordModal(false)}
-        driver={driver}
-        recordType={recordModalType}
-        onSave={(savedData) => {
-          setActionSuccess(`${recordModalType === 'clearinghouse' ? 'Clearinghouse query record' : 'Medical Examiner Certificate'} saved successfully!`);
-          fetchDriverData();
-        }}
-      />
 
       {/* All Active Compliance Alerts Modal */}
       {showAllAlertsModal && (

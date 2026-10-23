@@ -1,9 +1,11 @@
 const db = require('../config/db');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
+const notificationService = require('../services/notificationService');
 
 // Generate custom unique code for invitations/signing URLs
 const generateCode = () => {
@@ -44,9 +46,9 @@ const generateAgreementPDF = async (agreement, driver, clauses, signatureBase64)
       doc.fillColor('#1E293B').fontSize(12).text('DRIVER INFORMATION');
       doc.moveDown(0.5);
 
-      const dateSignedStr = new Date().toLocaleString('en-US', { 
-        month: '2-digit', day: '2-digit', year: 'numeric', 
-        hour: '2-digit', minute: '2-digit', hour12: true 
+      const dateSignedStr = new Date().toLocaleString('en-US', {
+        month: '2-digit', day: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
       });
 
       doc.fontSize(10).fillColor('#334155');
@@ -227,8 +229,8 @@ const getDriverById = async (req, res) => {
         const accurateStatus = hasViolations ? 'Violations Found' : 'No Violations Found';
         if (compliance.clearinghouse_result !== accurateStatus) {
           compliance.clearinghouse_result = accurateStatus;
-          db.query('UPDATE driver_compliance SET clearinghouse_result = ? WHERE driver_id = ?', [accurateStatus, id]).catch(() => {});
-          db.query('UPDATE volant_clearinghouse_queries SET result_status = ? WHERE id = ?', [accurateStatus, ch.id]).catch(() => {});
+          db.query('UPDATE driver_compliance SET clearinghouse_result = ? WHERE driver_id = ?', [accurateStatus, id]).catch(() => { });
+          db.query('UPDATE volant_clearinghouse_queries SET result_status = ? WHERE id = ?', [accurateStatus, ch.id]).catch(() => { });
         }
       }
     }
@@ -335,24 +337,53 @@ const getDriverById = async (req, res) => {
   }
 };
 
-// 3. Create a new driver profile (initializes empty compliance status)
+// 3. Create a new driver profile (initializes empty compliance status & sends welcome credentials)
 const createDriver = async (req, res) => {
   const ownerId = req.ownerId;
-  const { first_name, last_name, driver_id_number, email, phone_number, license_number, license_state, license_type, dob, hire_date } = req.body;
+  const {
+    first_name,
+    last_name,
+    driver_id_number,
+    username,
+    password,
+    email,
+    phone_number,
+    license_number,
+    license_state,
+    license_type,
+    dob,
+    hire_date
+  } = req.body;
 
   if (!first_name || !last_name || !driver_id_number || !email || !phone_number || !license_number || !license_state || !license_type || !dob || !hire_date) {
     return res.status(400).json({ status: 'error', message: 'All profile fields are required' });
   }
 
+  // Determine username and plaintext password for email dispatch
+  const cleanUsername = username && username.trim() ? username.trim() : email.trim();
+  const plainPassword = password && password.trim() ? password.trim() : `Driver@${Math.floor(1000 + Math.random() * 9000)}`;
+
   const connection = await db.getConnection();
   try {
+    // Check if username or email already exists for another driver under this company
+    const [existing] = await connection.query(
+      `SELECT id FROM drivers WHERE (username = ? OR email = ?) AND owner_id = ? LIMIT 1`,
+      [cleanUsername, email, ownerId]
+    );
+    if (existing.length > 0) {
+      // If duplicate, handle gracefully or report
+      console.log('[createDriver] Driver with this email/username already exists in company.');
+    }
+
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
     await connection.beginTransaction();
 
-    // Create driver profile
+    // Create driver profile with username and hashed password
     const [driverResult] = await connection.query(
-      `INSERT INTO drivers (owner_id, first_name, last_name, driver_id_number, email, phone_number, license_number, license_state, license_type, dob, hire_date, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())`,
-      [ownerId, first_name, last_name, driver_id_number, email, phone_number, license_number, license_state, license_type, dob, hire_date]
+      `INSERT INTO drivers (owner_id, first_name, last_name, driver_id_number, username, password, email, phone_number, license_number, license_state, license_type, dob, hire_date, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())`,
+      [ownerId, first_name, last_name, driver_id_number, cleanUsername, hashedPassword, email, phone_number, license_number, license_state, license_type, dob, hire_date]
     );
 
     const driverId = driverResult.insertId;
@@ -365,7 +396,81 @@ const createDriver = async (req, res) => {
     );
 
     await connection.commit();
-    return res.json({ status: 'success', message: 'Driver added successfully', driverId });
+
+    // Fetch carrier / company details for email
+    let carrierName = 'Global Limos Fleet Management';
+    try {
+      const [carrierRows] = await db.query(
+        `SELECT c.carrier_name, u.business_name, u.firstname, u.lastname
+         FROM global_limo_user u
+         LEFT JOIN carriers c ON c.user_id = u.id
+         WHERE u.id = ? LIMIT 1`,
+        [ownerId]
+      );
+      if (carrierRows.length > 0) {
+        carrierName = carrierRows[0].carrier_name || carrierRows[0].business_name || `${carrierRows[0].firstname} ${carrierRows[0].lastname}`;
+      }
+    } catch (_) { }
+
+    // Send Welcome Email with Driver Portal Credentials
+    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const loginUrl = `${frontendBaseUrl}/driver/login`;
+
+    const emailHtml = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <div style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); padding: 2rem; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; color: #FFFFFF;">Welcome to Driver Portal</h1>
+          <p style="margin: 0.5rem 0 0; color: #94A3B8; font-size: 0.9rem;">${carrierName}</p>
+        </div>
+        
+        <div style="padding: 2rem;">
+          <p style="font-size: 1rem; color: #334155; margin-top: 0;">Hello <strong>${first_name} ${last_name}</strong>,</p>
+          <p style="font-size: 0.95rem; color: #475569; line-height: 1.6;">
+            Your driver account has been created by <strong>${carrierName}</strong>. You can now log into your dedicated Driver Portal to view your signed agreements, access 45-day inspection records, and log vehicle repair/lube services.
+          </p>
+
+          <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 1.25rem; margin: 1.5rem 0;">
+            <h3 style="margin: 0 0 1rem; font-size: 0.95rem; color: #1E293B; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;">Your Login Credentials</h3>
+            <table style="width: 100%; font-size: 0.9rem; color: #334155;">
+              <tr>
+                <td style="padding: 0.4rem 0; color: #64748B; width: 120px; font-weight: 600;">Login URL:</td>
+                <td style="padding: 0.4rem 0;"><a href="${loginUrl}" style="color: #2563EB; font-weight: 600; text-decoration: none;">${loginUrl}</a></td>
+              </tr>
+              <tr>
+                <td style="padding: 0.4rem 0; color: #64748B; font-weight: 600;">Username:</td>
+                <td style="padding: 0.4rem 0; font-family: monospace; font-size: 0.95rem; font-weight: 700; color: #0F172A;">${cleanUsername}</td>
+              </tr>
+              <tr>
+                <td style="padding: 0.4rem 0; color: #64748B; font-weight: 600;">Password:</td>
+                <td style="padding: 0.4rem 0; font-family: monospace; font-size: 0.95rem; font-weight: 700; color: #0F172A; background-color: #EFF6FF; display: inline-block; padding: 2px 8px; border-radius: 4px; border: 1px solid #BFDBFE;">${plainPassword}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="text-align: center; margin: 2rem 0;">
+            <a href="${loginUrl}" style="display: inline-block; background-color: #2563EB; color: #ffffff; font-weight: 600; font-size: 1rem; padding: 0.85rem 2rem; border-radius: 8px; text-decoration: none; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);">Log In to Driver Portal</a>
+          </div>
+
+          <div style="border-top: 1px solid #E2E8F0; padding-top: 1.25rem; margin-top: 1.5rem; font-size: 0.825rem; color: #94A3B8; line-height: 1.5;">
+            <p style="margin: 0;"><strong>Security Tip:</strong> Please keep your login credentials confidential. If you have questions regarding your account or assignments, contact your fleet manager at ${carrierName}.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Asynchronously dispatch email notification
+    notificationService.sendEmail({
+      to: email,
+      subject: `Your Driver Account Credentials — ${carrierName}`,
+      html: emailHtml,
+      text: `Hello ${first_name}, your driver account has been created. Login at ${loginUrl} with Username: ${cleanUsername} and Password: ${plainPassword}`
+    }).catch(err => console.error('[createDriver] Error sending driver credentials email:', err));
+
+    return res.json({
+      status: 'success',
+      message: 'Driver added successfully. Login credentials sent to driver email.',
+      driverId
+    });
   } catch (error) {
     await connection.rollback();
     return res.status(500).json({ status: 'error', message: error.message });
@@ -378,22 +483,119 @@ const createDriver = async (req, res) => {
 const updateDriver = async (req, res) => {
   const { id } = req.params;
   const ownerId = req.ownerId;
-  const { first_name, last_name, driver_id_number, email, phone_number, license_number, license_state, license_type, dob, hire_date, status } = req.body;
+  const {
+    first_name,
+    last_name,
+    driver_id_number,
+    username,
+    password,
+    email,
+    phone_number,
+    license_number,
+    license_state,
+    license_type,
+    dob,
+    hire_date,
+    status
+  } = req.body;
 
   if (!first_name || !last_name || !driver_id_number || !email || !phone_number || !license_number || !license_state || !license_type || !dob || !hire_date || !status) {
     return res.status(400).json({ status: 'error', message: 'All profile fields are required' });
   }
 
   try {
-    const [result] = await db.query(
-      `UPDATE drivers
-       SET first_name = ?, last_name = ?, driver_id_number = ?, email = ?, phone_number = ?, license_number = ?, license_state = ?, license_type = ?, dob = ?, hire_date = ?, status = ?, updated_at = NOW()
-       WHERE id = ? AND owner_id = ?`,
-      [first_name, last_name, driver_id_number, email, phone_number, license_number, license_state, license_type, dob, hire_date, status, id, ownerId]
-    );
+    if (password && password.trim()) {
+      const hashedPassword = await bcrypt.hash(password.trim(), 10);
+      const cleanUsername = username ? username.trim() : email;
+      const [result] = await db.query(
+        `UPDATE drivers
+         SET first_name = ?, last_name = ?, driver_id_number = ?, username = ?, password = ?, email = ?, phone_number = ?, license_number = ?, license_state = ?, license_type = ?, dob = ?, hire_date = ?, status = ?, updated_at = NOW()
+         WHERE id = ? AND owner_id = ?`,
+        [first_name, last_name, driver_id_number, cleanUsername, hashedPassword, email, phone_number, license_number, license_state, license_type, dob, hire_date, status, id, ownerId]
+      );
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ status: 'error', message: 'Driver profile not found or unauthorized' });
+      }
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ status: 'error', message: 'Driver profile not found or unauthorized' });
+      // Fetch carrier / company details for email
+      let carrierName = 'Global Limos Fleet Management';
+      try {
+        const [carrierRows] = await db.query(
+          `SELECT c.carrier_name, u.business_name, u.firstname, u.lastname
+           FROM global_limo_user u
+           LEFT JOIN carriers c ON c.user_id = u.id
+           WHERE u.id = ? LIMIT 1`,
+          [ownerId]
+        );
+        if (carrierRows.length > 0) {
+          carrierName = carrierRows[0].carrier_name || carrierRows[0].business_name || `${carrierRows[0].firstname} ${carrierRows[0].lastname}`;
+        }
+      } catch (_) { }
+
+      const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const loginUrl = `${frontendBaseUrl}/driver/login`;
+
+      const emailHtml = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+          <div style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); padding: 2rem; text-align: center; color: white;">
+            <h1 style="margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; color: #FFFFFF;">Password Updated</h1>
+            <p style="margin: 0.5rem 0 0; color: #94A3B8; font-size: 0.9rem;">${carrierName}</p>
+          </div>
+          
+          <div style="padding: 2rem;">
+            <p style="font-size: 1rem; color: #334155; margin-top: 0;">Hello <strong>${first_name} ${last_name}</strong>,</p>
+            <p style="font-size: 0.95rem; color: #475569; line-height: 1.6;">
+              Your Driver Portal password has been updated by <strong>${carrierName}</strong>. You can use your updated credentials to log into your account.
+            </p>
+
+            <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 1.25rem; margin: 1.5rem 0;">
+              <h3 style="margin: 0 0 1rem; font-size: 0.95rem; color: #1E293B; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;">Your Updated Login Credentials</h3>
+              <table style="width: 100%; font-size: 0.9rem; color: #334155;">
+                <tr>
+                  <td style="padding: 0.4rem 0; color: #64748B; width: 120px; font-weight: 600;">Login URL:</td>
+                  <td style="padding: 0.4rem 0;"><a href="${loginUrl}" style="color: #2563EB; font-weight: 600; text-decoration: none;">${loginUrl}</a></td>
+                </tr>
+                <tr>
+                  <td style="padding: 0.4rem 0; color: #64748B; font-weight: 600;">Username:</td>
+                  <td style="padding: 0.4rem 0; font-family: monospace; font-size: 0.95rem; font-weight: 700; color: #0F172A;">${cleanUsername}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 0.4rem 0; color: #64748B; font-weight: 600;">New Password:</td>
+                  <td style="padding: 0.4rem 0; font-family: monospace; font-size: 0.95rem; font-weight: 700; color: #0F172A; background-color: #EFF6FF; display: inline-block; padding: 2px 8px; border-radius: 4px; border: 1px solid #BFDBFE;">${password.trim()}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="text-align: center; margin: 2rem 0;">
+              <a href="${loginUrl}" style="display: inline-block; background-color: #2563EB; color: #ffffff; font-weight: 600; font-size: 1rem; padding: 0.85rem 2rem; border-radius: 8px; text-decoration: none; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);">Log In to Driver Portal</a>
+            </div>
+
+            <div style="border-top: 1px solid #E2E8F0; padding-top: 1.25rem; margin-top: 1.5rem; font-size: 0.825rem; color: #94A3B8; line-height: 1.5;">
+              <p style="margin: 0;"><strong>Security Tip:</strong> If you did not request or expect this change, please contact your fleet manager immediately at ${carrierName}.</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      notificationService.sendEmail({
+        to: email,
+        subject: `Your Driver Account Password Was Updated — ${carrierName}`,
+        html: emailHtml,
+        text: `Hello ${first_name}, your driver account password has been updated. Login at ${loginUrl} with Username: ${cleanUsername} and Password: ${password.trim()}`
+      }).catch(err => console.error('[updateDriver] Error sending driver password update email:', err));
+
+      return res.json({ status: 'success', message: 'Driver profile and password updated successfully. Notification email sent to driver.' });
+    } else {
+      const cleanUsername = username ? username.trim() : email;
+      const [result] = await db.query(
+        `UPDATE drivers
+         SET first_name = ?, last_name = ?, driver_id_number = ?, username = ?, email = ?, phone_number = ?, license_number = ?, license_state = ?, license_type = ?, dob = ?, hire_date = ?, status = ?, updated_at = NOW()
+         WHERE id = ? AND owner_id = ?`,
+        [first_name, last_name, driver_id_number, cleanUsername, email, phone_number, license_number, license_state, license_type, dob, hire_date, status, id, ownerId]
+      );
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ status: 'error', message: 'Driver profile not found or unauthorized' });
+      }
     }
 
     return res.json({ status: 'success', message: 'Driver profile updated successfully' });
@@ -487,6 +689,25 @@ const saveFinePrint = async (req, res) => {
   }
 };
 
+// Delete fine print template
+const deleteFinePrint = async (req, res) => {
+  const ownerId = req.ownerId;
+  const { id } = req.params;
+
+  try {
+    const [result] = await db.query(
+      'DELETE FROM fine_print_library WHERE id = ? AND owner_id = ?',
+      [id, ownerId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ status: 'error', message: 'Fine print not found' });
+    }
+    return res.json({ status: 'success', message: 'Fine print deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
 // 8. Dispatch Agreement to Driver (SMS via Twilio / Email)
 const sendAgreement = async (req, res) => {
   const ownerId = req.ownerId;
@@ -519,7 +740,7 @@ const sendAgreement = async (req, res) => {
       if (accountSid && authToken && fromNumber) {
         const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
         const authHeader = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-        
+
         const params = new URLSearchParams();
         params.append('To', driver.phone_number);
         params.append('From', fromNumber);
@@ -722,6 +943,46 @@ const signAgreement = async (req, res) => {
     return res.json({ status: 'success', message: 'Agreement signed successfully', pdfUrl });
   } catch (error) {
     return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+const downloadAgreement = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [agRows] = await db.query('SELECT * FROM driver_agreements WHERE id = ? LIMIT 1', [id]);
+    if (agRows.length === 0) {
+      return res.status(404).send('Agreement not found');
+    }
+    const agreement = agRows[0];
+
+    let filePath = null;
+    if (agreement.pdf_file_path) {
+      const candidate = path.join(__dirname, '..', agreement.pdf_file_path.replace(/^\//, ''));
+      if (fs.existsSync(candidate)) {
+        filePath = candidate;
+      }
+    }
+
+    if (!filePath) {
+      const [drRows] = await db.query('SELECT * FROM drivers WHERE id = ? LIMIT 1', [agreement.driver_id]);
+      const driver = drRows[0] || {};
+      const finePrintIds = JSON.parse(agreement.fine_print_ids || '[]');
+      let clauses = [];
+      if (finePrintIds.length > 0) {
+        const [cRows] = await db.query('SELECT title, text FROM fine_print_library WHERE id IN (?)', [finePrintIds]);
+        clauses = cRows;
+      }
+      const pdfRes = await generateAgreementPDF(agreement, driver, clauses, agreement.signature);
+      filePath = pdfRes.filePath;
+      await db.query('UPDATE driver_agreements SET pdf_file_path = ? WHERE id = ?', [pdfRes.fileUrl, agreement.id]);
+    }
+
+    const downloadName = path.basename(filePath);
+    res.setHeader('Content-Type', 'application/pdf');
+    return res.download(filePath, downloadName);
+  } catch (err) {
+    console.error('Error downloading agreement:', err);
+    return res.status(500).send('Error downloading agreement file');
   }
 };
 
@@ -1088,7 +1349,7 @@ const syncComplianceDrugStatus = async (driverId) => {
 
     const preEmploymentTestVal = preEmp.length > 0 ? preEmp[0].result : null;
     const lastDrugTestDateVal = latest.length > 0 ? latest[0].test_date : null;
-    
+
     // We update pre_employment_test and last_drug_test_date in driver_compliance
     await db.query(
       `UPDATE driver_compliance 
@@ -1359,6 +1620,7 @@ module.exports = {
   updateDriverCompliance,
   getFinePrints,
   saveFinePrint,
+  deleteFinePrint,
   sendAgreement,
   getAgreementDetails,
   signAgreement,
@@ -1377,5 +1639,7 @@ module.exports = {
   getDriverMvrRecords,
   createDriverMvrRecord,
   updateDriverMvrRecord,
-  deleteDriverMvrRecord
+  deleteDriverMvrRecord,
+  downloadAgreement,
+  generateAgreementPDF
 };

@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  ArrowLeft, 
-  UploadCloud, 
-  FileText, 
-  Download, 
-  Trash2, 
-  Edit2, 
-  Eye, 
-  CheckCircle2, 
-  AlertCircle 
+import {
+  ArrowLeft,
+  UploadCloud,
+  FileText,
+  Download,
+  Trash2,
+  Edit2,
+  Eye,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAssetBaseUrl } from '../config/apiConfig';
@@ -113,7 +113,6 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
       setUploadedFile(null);
     }
     setError('');
-    setSuccess('');
   }, [initialRecord]);
 
   useEffect(() => {
@@ -122,12 +121,22 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
     }
   }, [error]);
 
+  useEffect(() => {
+    if (success) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const timer = setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
   const handleFileProcess = async (file) => {
     if (!file) return;
     const now = new Date();
     const timeStr = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const isImg = file.type.startsWith('image/');
-    
+
     const formData = new FormData();
     formData.append('files', file);
 
@@ -184,20 +193,22 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
     e.preventDefault();
     if (!testDate) {
       setError('Test Date is required.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     if (!resultDate) {
       setError('Result Date is required.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     if (!uploadedFile) {
       setError('Please upload the test document.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     setSaving(true);
     setError('');
-    setSuccess('');
 
     const payload = {
       testType,
@@ -209,11 +220,13 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
       uploadedFile
     };
 
+    const isEdit = !!initialRecord;
     try {
       await onSave(payload);
-      setSuccess(`Drug test record successfully ${initialRecord ? 'updated' : 'saved'}!`);
+      setSuccess(`Drug & Alcohol test record successfully ${isEdit ? 'updated' : 'saved'}!`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       // Reset form if creating new
-      if (!initialRecord) {
+      if (!isEdit) {
         setTestType('Random');
         setTestDate('');
         setResultDate('');
@@ -224,6 +237,7 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
       }
     } catch (err) {
       setError(err.message || 'Failed to save record.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
     }
@@ -237,13 +251,36 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
 
   return (
     <div className="drug-logs-page-container animate-fade-in">
-      
+
+      {/* Floating Toast Notification (Always Visible on screen) */}
+      {success && (
+        <div className="floating-toast-alert toast-success">
+          <CheckCircle2 size={22} className="toast-icon" />
+          <div className="toast-content">
+            <strong>Success</strong>
+            <span>{success}</span>
+          </div>
+          <button type="button" className="toast-close-btn" onClick={() => setSuccess('')}>&times;</button>
+        </div>
+      )}
+
+      {error && (
+        <div className="floating-toast-alert toast-error">
+          <AlertCircle size={22} className="toast-icon" />
+          <div className="toast-content">
+            <strong>Error</strong>
+            <span>{error}</span>
+          </div>
+          <button type="button" className="toast-close-btn" onClick={() => setError('')}>&times;</button>
+        </div>
+      )}
+
       {/* Header & Navigation */}
       <div className="drug-page-header-row">
         <div className="breadcrumbs-nav-drug">
           <span className="breadcrumb-link-drug" onClick={onClose} style={{ cursor: 'pointer' }}>Drivers</span>
           <span className="breadcrumb-separator-drug">/</span>
-          <span className="breadcrumb-current-drug">{driver.id}. {initialRecord ? 'Edit' : 'Add'} Drug Test Record</span>
+          <span className="breadcrumb-current-drug">{initialRecord ? 'Edit' : 'Add'} Drug Test Record</span>
         </div>
         <button className="btn-back-driver" onClick={onClose}>
           <ArrowLeft size={16} />
@@ -254,7 +291,7 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
       {/* Main Form Box */}
       <div className="card form-page-card drug-form-card">
         <div className="drug-card-header">
-          <h2>{driver.id}. {initialRecord ? 'Edit' : 'Add'} Drug Test Record</h2>
+          <h2>{initialRecord ? 'Edit' : 'Add'} Drug Test Record</h2>
         </div>
 
         {error && (
@@ -271,10 +308,10 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
 
         <form onSubmit={handleSubmit} className="drug-main-form">
           <div className="drug-form-grid-4">
-            
+
             <div className="form-group">
               <label className="form-label">Test Type *</label>
-              <select 
+              <select
                 className="form-control"
                 value={testType}
                 onChange={(e) => setTestType(e.target.value)}
@@ -291,7 +328,7 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
 
             <div className="form-group">
               <label className="form-label">Test Date *</label>
-              <input 
+              <input
                 type="date"
                 className="form-control"
                 value={testDate}
@@ -302,7 +339,7 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
 
             <div className="form-group">
               <label className="form-label">Result Date *</label>
-              <input 
+              <input
                 type="date"
                 className="form-control"
                 value={resultDate}
@@ -313,7 +350,7 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
 
             <div className="form-group">
               <label className="form-label">Result *</label>
-              <select 
+              <select
                 className="form-control"
                 value={result}
                 onChange={(e) => setResult(e.target.value)}
@@ -329,18 +366,18 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
           </div>
 
           <div className="drug-form-row-2">
-            
+
             <div className="form-group mro-group">
               <label className="form-label">MRO Verified</label>
               <div className="vertical-radio-pills">
                 {['Yes', 'No'].map((opt) => (
                   <label key={opt} className={`radio-pill-label-vertical ${mroVerified === opt ? 'radio-active' : ''}`}>
-                    <input 
-                      type="radio" 
-                      name="mroVerified" 
-                      value={opt} 
-                      checked={mroVerified === opt} 
-                      onChange={() => setMroVerified(opt)} 
+                    <input
+                      type="radio"
+                      name="mroVerified"
+                      value={opt}
+                      checked={mroVerified === opt}
+                      onChange={() => setMroVerified(opt)}
                     />
                     <span className="radio-dot"></span>
                     <span className="radio-text">{opt}</span>
@@ -351,7 +388,7 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
 
             <div className="form-group notes-group">
               <label className="form-label">Collection Notes</label>
-              <textarea 
+              <textarea
                 className="form-control drug-textarea"
                 rows={3}
                 placeholder="Enter collection details, clinic name, or additional notes..."
@@ -365,13 +402,13 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
           {/* Upload Document Section */}
           <div className="form-group upload-document-group">
             <label className="form-label">Upload Document (PDF, Image) *</label>
-            <div 
+            <div
               className="drug-dropzone-box"
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
             >
-              <input 
+              <input
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf"
@@ -397,19 +434,19 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
                   </div>
                 </div>
                 <div className="file-actions-right">
-                  <a 
-                    href={getFileUrl(uploadedFile.previewUrl)} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="file-btn" 
+                  <a
+                    href={getFileUrl(uploadedFile.previewUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="file-btn"
                     title="View Document"
                   >
                     <Eye size={16} />
                   </a>
-                  <a 
-                    href={getFileUrl(uploadedFile.previewUrl)} 
-                    download={uploadedFile.name} 
-                    className="file-btn" 
+                  <a
+                    href={getFileUrl(uploadedFile.previewUrl)}
+                    download={uploadedFile.name}
+                    className="file-btn"
                     title="Download Document"
                   >
                     <Download size={16} />
@@ -419,10 +456,37 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
             )}
           </div>
 
-          <div className="form-actions-row">
-            <button type="submit" className="btn btn-primary btn-save-drug-record" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Record'}
-            </button>
+          <div className="form-actions-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              {success && (
+                <div className="inline-form-alert inline-success">
+                  <CheckCircle2 size={16} /> <span>{success}</span>
+                </div>
+              )}
+              {error && (
+                <div className="inline-form-alert inline-error">
+                  <AlertCircle size={16} /> <span>{error}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              {initialRecord && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    onSave(null, 'CLEAR_EDIT');
+                    setSuccess('');
+                    setError('');
+                  }}
+                >
+                  Cancel Edit
+                </button>
+              )}
+              <button type="submit" className="btn btn-primary btn-save-drug-record" disabled={saving}>
+                {saving ? 'Saving...' : (initialRecord ? 'Update Drug Test Record' : 'Save Record')}
+              </button>
+            </div>
           </div>
 
         </form>
@@ -468,10 +532,10 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
                     <td>{rec.mro_verified}</td>
                     <td>
                       {rec.uploadedFile ? (
-                        <a 
-                          href={getFileUrl(rec.uploadedFile.previewUrl)} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
+                        <a
+                          href={getFileUrl(rec.uploadedFile.previewUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="view-doc-link"
                         >
                           View
@@ -482,25 +546,30 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
                     <td>{formatDateForDisplay(rec.created_at)}</td>
                     <td>
                       <div className="actions-btn-group">
-                        <button 
-                          className="action-btn btn-edit-drug" 
+                        <button
+                          type="button"
+                          className="action-btn btn-edit-drug"
                           onClick={() => {
                             onSave(null, rec); // Opens it in edit mode in the form above
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
-                          title="Edit"
+                          title="Edit Drug Test Record"
+                          aria-label="Edit"
                         >
-                          <Edit2 size={14} />
+                          <Edit2 size={15} color="#2563EB" />
                         </button>
-                        <button 
-                          className="action-btn btn-delete-drug" 
+                        <button
+                          type="button"
+                          className="action-btn btn-delete-drug"
                           onClick={() => {
                             if (window.confirm('Are you sure you want to delete this drug test record?')) {
                               onDelete(rec.id);
                             }
                           }}
-                          title="Delete"
+                          title="Delete Drug Test Record"
+                          aria-label="Delete"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} color="#EF4444" />
                         </button>
                       </div>
                     </td>
@@ -518,25 +587,25 @@ const DrugRecordView = ({ driver, initialRecord, drugRecords, onClose, onSave, o
               Showing {indexOfFirstRecord + 1} to {Math.min(indexOfLastRecord, drugRecords.length)} of {drugRecords.length} records
             </span>
             <div className="pagination-buttons">
-              <button 
-                className="btn-page" 
-                disabled={currentPage === 1} 
+              <button
+                className="btn-page"
+                disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => prev - 1)}
               >
                 &lsaquo;
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-                <button 
-                  key={pNum} 
+                <button
+                  key={pNum}
                   className={`btn-page ${currentPage === pNum ? 'page-active' : ''}`}
                   onClick={() => setCurrentPage(pNum)}
                 >
                   {pNum}
                 </button>
               ))}
-              <button 
-                className="btn-page" 
-                disabled={currentPage === totalPages} 
+              <button
+                className="btn-page"
+                disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(prev => prev + 1)}
               >
                 &rsaquo;

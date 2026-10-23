@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ConsortiumAuthProvider } from './context/ConsortiumAuthContext';
+import { DriverAuthProvider } from './driver_panel/context/DriverAuthContext';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
 import { Menu, Settings, ShieldCheck } from 'lucide-react';
@@ -34,6 +35,16 @@ import ConsortiumClearinghouse from './consortium_panel/pages/clearinghouse/Cons
 import ConsortiumClearinghouseCreate from './consortium_panel/pages/clearinghouse/ConsortiumClearinghouseCreate';
 import ConsortiumCompanies from './consortium_panel/pages/ConsortiumCompanies';
 import ConsortiumDrivers from './consortium_panel/pages/ConsortiumDrivers';
+
+// Driver Portal Pages & Protected Route
+import DriverProtectedRoute from './driver_panel/components/DriverProtectedRoute';
+import DriverLayout from './driver_panel/components/DriverLayout';
+import DriverLogin from './driver_panel/pages/DriverLogin';
+import DriverDashboard from './driver_panel/pages/DriverDashboard';
+import DriverAgreements from './driver_panel/pages/DriverAgreements';
+import DriverInspections from './driver_panel/pages/DriverInspections';
+import DriverRepairs from './driver_panel/pages/DriverRepairs';
+import DriverLubes from './driver_panel/pages/DriverLubes';
 
 const ProtectedRoute = ({ children }) => {
   const { token, loading } = useAuth();
@@ -94,49 +105,61 @@ function App() {
     <Router>
       <ConsortiumAuthProvider>
         <AuthProvider>
-          <Routes>
-            {/* Existing Company / Owner App Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/fleets" element={<ProtectedRoute><Fleets /></ProtectedRoute>} />
-            <Route path="/fleets/inspection/:fleet_id" element={<ProtectedRoute><InspectionDetail /></ProtectedRoute>} />
-            <Route path="/lubes" element={<ProtectedRoute><LubeLogs /></ProtectedRoute>} />
-            <Route path="/repairs" element={<ProtectedRoute><RepairLogs /></ProtectedRoute>} />
-            <Route path="/sharing" element={<ProtectedRoute><Sharing /></ProtectedRoute>} />
-            <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-            <Route path="/consortium-requests" element={<ProtectedRoute><CompanyConsortiumRequests /></ProtectedRoute>} />
-            <Route path="/drivers" element={<ProtectedRoute><Drivers /></ProtectedRoute>} />
-            <Route path="/drivers/:driver_id" element={<ProtectedRoute><DriverDetail /></ProtectedRoute>} />
-            <Route path="/driver-sign/:code" element={<DriverSign />} />
-            
-            {/* Dedicated Consortium Panel Routes (/consortium_panel) */}
-            <Route path="/consortium_panel/login" element={<ConsortiumLogin />} />
-            <Route path="/consortium_panel/logout" element={<Navigate to="/consortium_panel/login" replace />} />
-            
-            <Route path="/consortium_panel" element={<Navigate to="/consortium_panel/dashboard" replace />} />
-            <Route path="/consortium_panel/dashboard" element={<ConsortiumProtectedRoute><ConsortiumDashboard /></ConsortiumProtectedRoute>} />
-            <Route path="/consortium_panel/profile" element={<ConsortiumProtectedRoute><ConsortiumProfile /></ConsortiumProtectedRoute>} />
-            
-            <Route path="/consortium_panel/requests" element={<ConsortiumProtectedRoute><ConsortiumRequests /></ConsortiumProtectedRoute>} />
-            <Route path="/consortium_panel/requests/create" element={<ConsortiumProtectedRoute><ConsortiumRequestCreate /></ConsortiumProtectedRoute>} />
-            <Route path="/consortium_panel/requests/view/:id" element={<ConsortiumProtectedRoute><ConsortiumRequestDetail /></ConsortiumProtectedRoute>} />
-            
-            <Route path="/consortium_panel/drug-tests" element={<ConsortiumProtectedRoute><ConsortiumDrugTests /></ConsortiumProtectedRoute>} />
-            <Route path="/consortium_panel/drug-tests/create" element={<ConsortiumProtectedRoute><ConsortiumDrugTestCreate /></ConsortiumProtectedRoute>} />
-            <Route path="/consortium_panel/drug-tests/view/:id" element={<ConsortiumProtectedRoute><ConsortiumRequestDetail /></ConsortiumProtectedRoute>} />
-            
-            <Route path="/consortium_panel/clearinghouse" element={<ConsortiumProtectedRoute><ConsortiumClearinghouse /></ConsortiumProtectedRoute>} />
-            <Route path="/consortium_panel/clearinghouse/create" element={<ConsortiumProtectedRoute><ConsortiumClearinghouseCreate /></ConsortiumProtectedRoute>} />
-            <Route path="/consortium_panel/clearinghouse/view/:id" element={<ConsortiumProtectedRoute><ConsortiumRequestDetail /></ConsortiumProtectedRoute>} />
-            
-            <Route path="/consortium_panel/companies" element={<ConsortiumProtectedRoute><ConsortiumCompanies /></ConsortiumProtectedRoute>} />
-            <Route path="/consortium_panel/drivers" element={<ConsortiumProtectedRoute><ConsortiumDrivers /></ConsortiumProtectedRoute>} />
+          <DriverAuthProvider>
+            <Routes>
+              {/* Existing Company / Owner App Routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/fleets" element={<ProtectedRoute><Fleets /></ProtectedRoute>} />
+              <Route path="/fleets/inspection/:fleet_id" element={<ProtectedRoute><InspectionDetail /></ProtectedRoute>} />
+              <Route path="/lubes" element={<ProtectedRoute><LubeLogs /></ProtectedRoute>} />
+              <Route path="/repairs" element={<ProtectedRoute><RepairLogs /></ProtectedRoute>} />
+              <Route path="/sharing" element={<ProtectedRoute><Sharing /></ProtectedRoute>} />
+              <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+              <Route path="/consortium-requests" element={<ProtectedRoute><CompanyConsortiumRequests /></ProtectedRoute>} />
+              <Route path="/drivers" element={<ProtectedRoute><Drivers /></ProtectedRoute>} />
+              <Route path="/drivers/:driver_id" element={<ProtectedRoute><DriverDetail /></ProtectedRoute>} />
+              <Route path="/driver-sign/:code" element={<DriverSign />} />
+              
+              {/* Dedicated Consortium Panel Routes (/consortium_panel) */}
+              <Route path="/consortium_panel/login" element={<ConsortiumLogin />} />
+              <Route path="/consortium_panel/logout" element={<Navigate to="/consortium_panel/login" replace />} />
+              
+              <Route path="/consortium_panel" element={<Navigate to="/consortium_panel/dashboard" replace />} />
+              <Route path="/consortium_panel/dashboard" element={<ConsortiumProtectedRoute><ConsortiumDashboard /></ConsortiumProtectedRoute>} />
+              <Route path="/consortium_panel/profile" element={<ConsortiumProtectedRoute><ConsortiumProfile /></ConsortiumProtectedRoute>} />
+              
+              <Route path="/consortium_panel/requests" element={<ConsortiumProtectedRoute><ConsortiumRequests /></ConsortiumProtectedRoute>} />
+              <Route path="/consortium_panel/requests/create" element={<ConsortiumProtectedRoute><ConsortiumRequestCreate /></ConsortiumProtectedRoute>} />
+              <Route path="/consortium_panel/requests/view/:id" element={<ConsortiumProtectedRoute><ConsortiumRequestDetail /></ConsortiumProtectedRoute>} />
+              
+              <Route path="/consortium_panel/drug-tests" element={<ConsortiumProtectedRoute><ConsortiumDrugTests /></ConsortiumProtectedRoute>} />
+              <Route path="/consortium_panel/drug-tests/create" element={<ConsortiumProtectedRoute><ConsortiumDrugTestCreate /></ConsortiumProtectedRoute>} />
+              <Route path="/consortium_panel/drug-tests/view/:id" element={<ConsortiumProtectedRoute><ConsortiumRequestDetail /></ConsortiumProtectedRoute>} />
+              
+              <Route path="/consortium_panel/clearinghouse" element={<ConsortiumProtectedRoute><ConsortiumClearinghouse /></ConsortiumProtectedRoute>} />
+              <Route path="/consortium_panel/clearinghouse/create" element={<ConsortiumProtectedRoute><ConsortiumClearinghouseCreate /></ConsortiumProtectedRoute>} />
+              <Route path="/consortium_panel/clearinghouse/view/:id" element={<ConsortiumProtectedRoute><ConsortiumRequestDetail /></ConsortiumProtectedRoute>} />
+              
+              <Route path="/consortium_panel/companies" element={<ConsortiumProtectedRoute><ConsortiumCompanies /></ConsortiumProtectedRoute>} />
+              <Route path="/consortium_panel/drivers" element={<ConsortiumProtectedRoute><ConsortiumDrivers /></ConsortiumProtectedRoute>} />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              {/* Dedicated Driver Panel Routes (/driver) */}
+              <Route path="/driver/login" element={<DriverLogin />} />
+              <Route path="/driver/logout" element={<Navigate to="/driver/login" replace />} />
+              <Route path="/driver" element={<Navigate to="/driver/dashboard" replace />} />
+              <Route path="/driver/dashboard" element={<DriverProtectedRoute><DriverLayout><DriverDashboard /></DriverLayout></DriverProtectedRoute>} />
+              <Route path="/driver/agreements" element={<DriverProtectedRoute><DriverLayout><DriverAgreements /></DriverLayout></DriverProtectedRoute>} />
+              <Route path="/driver/inspections" element={<DriverProtectedRoute><DriverLayout><DriverInspections /></DriverLayout></DriverProtectedRoute>} />
+              <Route path="/driver/repairs" element={<DriverProtectedRoute><DriverLayout><DriverRepairs /></DriverLayout></DriverProtectedRoute>} />
+              <Route path="/driver/lubes" element={<DriverProtectedRoute><DriverLayout><DriverLubes /></DriverLayout></DriverProtectedRoute>} />
+
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </DriverAuthProvider>
         </AuthProvider>
       </ConsortiumAuthProvider>
     </Router>
